@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ledger | Business management dashboard",
-  description: "A focused workspace for understanding and managing business performance.",
+  title: "Ledger | Business dashboard",
+  description: "A focused workspace for managing business performance.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

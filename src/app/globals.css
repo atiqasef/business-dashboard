@@ -2,11 +2,22 @@
 
 :root {
   --surface: #f4f5ef;
+  --surface-raised: #ffffff;
+  --surface-soft: #ecefe8;
   --ink: #20332e;
+  --ink-strong: #162620;
   --muted: #687772;
   --line: #d9dfd6;
+  --line-strong: #c4cec5;
   --accent: #c9633f;
   --accent-soft: #e9c6a6;
+  --accent-strong: #9d452b;
+  --positive: #378568;
+  --positive-soft: #dcefe6;
+  --warning: #ac702c;
+  --warning-soft: #f5e8d0;
+  --blue: #557ca4;
+  --blue-soft: #dfe9f3;
 }
 
 @theme inline {
@@ -17,4 +28,31 @@
 body {
   background: var(--surface);
   color: var(--ink);
+}
+
+.dark {
+  --surface: #17221f;
+  --surface-raised: #202d29;
+  --surface-soft: #2a3934;
+  --ink: #edf3ee;
+  --ink-strong: #ffffff;
+  --muted: #a7b7ae;
+  --line: #354740;
+  --line-strong: #4b5d54;
+  --accent: #e48763;
+  --accent-soft: #5b3c31;
+  --accent-strong: #f2a17f;
+  --positive: #6fbd9d;
+  --positive-soft: #264b3e;
+  --warning: #e1a258;
+  --warning-soft: #513b23;
+  --blue: #8bb2dc;
+  --blue-soft: #2b4056;
+}
+
+.chart-bar {
+  width: clamp(1.25rem, 7%, 3.25rem);
+  border-radius: 0.5rem 0.5rem 0 0;
+  background: linear-gradient(180deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 68%, var(--surface-raised)) 100%);
+  opacity: 0.88;
 }
