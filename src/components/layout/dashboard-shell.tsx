@@ -112,7 +112,7 @@ export function DashboardShell() {
                     const active = item.label === "Dashboard";
                     return (
                       <a
-                        href={active ? "/" : `#${item.label.toLowerCase()}`}
+                        href={item.label === "Customers" ? "/customers" : active ? "/" : `#${item.label.toLowerCase()}`}
                         key={item.label}
                         onClick={() => setSidebarOpen(false)}
                         className={`group flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${active ? "bg-[var(--ink)] text-white" : "text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--ink)]"} ${sidebarCollapsed ? "lg:justify-center" : ""}`}
