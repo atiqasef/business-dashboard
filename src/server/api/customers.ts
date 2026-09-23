@@ -70,6 +70,23 @@ function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildCustomerSearchFilter(search: string) {
+  const escaped = escapeRegExp(search);
+  return {
+    $or: [
+      { firstName: { $regex: escaped, $options: "i" } },
+      { lastName: { $regex: escaped, $options: "i" } },
+      { email: { $regex: escaped, $options: "i" } },
+      { company: { $regex: escaped, $options: "i" } },
+      { phone: { $regex: escaped, $options: "i" } },
+    ],
+  };
+}
+
 export async function GET(request: Request) {
   const session = await getSession(request);
   if (!session) return errorResponse("Authentication required", 401);
@@ -86,7 +103,7 @@ export async function GET(request: Request) {
     await ensureCustomerIndexes();
     const filter: Record<string, unknown> = { ownerId: session.user.id };
     if (status) filter.status = status;
-    if (search) filter.$text = { $search: search };
+    if (search) Object.assign(filter, buildCustomerSearchFilter(search));
 
     const collection = getCustomersCollection();
     const [customers, total] = await Promise.all([

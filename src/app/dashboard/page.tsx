@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { SignOutButton } from "@/features/auth/components/sign-out-button";
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({
@@ -19,11 +20,7 @@ export default async function DashboardPage() {
             <p className="text-xs font-bold tracking-[0.18em] text-[var(--accent)] uppercase">Dashboard</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">Welcome back</h1>
           </div>
-          <form action="/api/auth/sign-out" method="post">
-            <button className="rounded-xl bg-[var(--ink)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--ink-strong)]">
-              Sign out
-            </button>
-          </form>
+          <SignOutButton />
         </div>
 
         <div className="mt-8 grid gap-6 md:grid-cols-3">

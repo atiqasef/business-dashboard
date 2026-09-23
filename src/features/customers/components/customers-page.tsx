@@ -62,6 +62,7 @@ export function CustomersPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | CustomerStatus>("all");
   const [page, setPage] = useState(1);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 10, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -104,7 +105,7 @@ export function CustomersPage() {
     }
     loadCustomers();
     return () => controller.abort();
-  }, [page, search, status]);
+  }, [page, search, status, refreshTick]);
 
   function openCreate() {
     setSelected(null);
@@ -168,6 +169,7 @@ export function CustomersPage() {
       setModal(null);
       setFeedback(selected ? "Customer updated successfully." : "Customer added successfully.");
       setPage(1);
+      setRefreshTick((current) => current + 1);
       setSearch(search);
     } catch (saveError) {
       setFormErrors({ form: saveError instanceof Error ? saveError.message : "Unable to save customer." });
@@ -185,6 +187,7 @@ export function CustomersPage() {
       const payload = response.status === 204 ? null : await response.json();
       if (!response.ok) throw new Error(payload?.error || "Unable to delete customer.");
       setFeedback("Customer deleted successfully.");
+      setRefreshTick((current) => current + 1);
       if (customers.length === 1 && page > 1) setPage(page - 1);
       else setCustomers((current) => current.filter((item) => item.id !== customer.id));
       setPagination((current) => ({ ...current, total: Math.max(current.total - 1, 0) }));
