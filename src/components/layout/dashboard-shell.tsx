@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Bell,
@@ -77,6 +78,7 @@ const inventory = [
 ];
 
 export function DashboardShell() {
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -85,6 +87,13 @@ export function DashboardShell() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
+  function getNavigationHref(label: string) {
+    if (label === "Dashboard") return "/";
+    if (label === "Customers") return "/customers";
+    if (label === "Products") return "/products";
+    return `#${label.toLowerCase()}`;
+  }
 
   return (
     <div className="min-h-screen bg-[var(--surface)] text-[var(--ink)]">
@@ -109,10 +118,11 @@ export function DashboardShell() {
                 <div className="space-y-1">
                   {group.items.map((item) => {
                     const Icon = item.icon;
-                    const active = item.label === "Dashboard";
+                    const href = getNavigationHref(item.label);
+                    const active = pathname === href || (item.label === "Dashboard" && pathname === "/");
                     return (
                       <a
-                        href={item.label === "Customers" ? "/customers" : active ? "/" : `#${item.label.toLowerCase()}`}
+                        href={href}
                         key={item.label}
                         onClick={() => setSidebarOpen(false)}
                         className={`group flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${active ? "bg-[var(--ink)] text-white" : "text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--ink)]"} ${sidebarCollapsed ? "lg:justify-center" : ""}`}

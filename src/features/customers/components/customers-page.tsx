@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, Plus, MoreHorizontal, Pencil, Trash2, Eye, ChevronLeft, ChevronRight, X, Loader2, Users, RefreshCw } from "lucide-react";
+import { BackToDashboardLink } from "@/components/common/back-to-dashboard-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeading } from "@/components/ui/card";
@@ -206,7 +207,10 @@ export function CustomersPage() {
           <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Customers</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">Keep every customer relationship organized in one place.</p>
         </div>
-        <Button variant="primary" className="self-start sm:self-auto" onClick={openCreate}><Plus className="size-4" aria-hidden="true" /> Add customer</Button>
+        <div className="flex flex-col gap-3 self-start sm:self-auto sm:flex-row sm:items-center">
+          <BackToDashboardLink />
+          <Button variant="primary" className="self-start sm:self-auto" onClick={openCreate}><Plus className="size-4" aria-hidden="true" /> Add customer</Button>
+        </div>
       </div>
 
       {feedback ? <div className="mb-5 rounded-xl border border-[var(--positive)]/20 bg-[var(--positive-soft)] px-4 py-3 text-sm font-medium text-[var(--positive)]" role="status">{feedback}</div> : null}
