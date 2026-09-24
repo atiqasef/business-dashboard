@@ -92,6 +92,7 @@ export function DashboardShell() {
     if (label === "Dashboard") return "/";
     if (label === "Customers") return "/customers";
     if (label === "Products") return "/products";
+    if (label === "Orders") return "/orders";
     return `#${label.toLowerCase()}`;
   }
 
