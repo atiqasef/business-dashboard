@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, Loader2, Pencil, Plus, RefreshCw, Search, ShoppingCart, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, FileText, Loader2, Pencil, Plus, RefreshCw, Search, ShoppingCart, Trash2, X } from "lucide-react";
 import { BackToDashboardLink } from "@/components/common/back-to-dashboard-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -991,6 +992,59 @@ function DetailsModal({
   onClose: () => void;
   onEdit: () => void;
 }) {
+  const [invoiceId, setInvoiceId] = useState<string | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(true);
+  const [invoiceCreating, setInvoiceCreating] = useState(false);
+  const [invoiceError, setInvoiceError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadInvoiceLink() {
+      setInvoiceLoading(true);
+      setInvoiceError("");
+
+      try {
+        const response = await fetch(`/api/invoices?orderId=${encodeURIComponent(order.id)}&page=1&pageSize=1`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Unable to load invoice link.");
+        const first = Array.isArray(payload.data) ? payload.data[0] : null;
+        setInvoiceId(first?.id ?? null);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setInvoiceError(error instanceof Error ? error.message : "Unable to load invoice link.");
+      } finally {
+        if (!controller.signal.aborted) setInvoiceLoading(false);
+      }
+    }
+
+    void loadInvoiceLink();
+    return () => controller.abort();
+  }, [order.id]);
+
+  async function createInvoice() {
+    setInvoiceCreating(true);
+    setInvoiceError("");
+    try {
+      const response = await fetch("/api/invoices", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId: order.id, tax: 0, issue: true }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to create invoice.");
+      setInvoiceId(payload.data.id);
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : "Unable to create invoice.");
+    } finally {
+      setInvoiceCreating(false);
+    }
+  }
+
   return (
     <Modal title="Order details" onClose={onClose}>
       <div className="p-5 sm:p-6">
@@ -1055,8 +1109,26 @@ function DetailsModal({
           </div>
         </div>
 
-        <div className="mt-7 flex justify-end gap-3 border-t border-[var(--line)] pt-5">
+        {invoiceError ? <p className="mt-5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{invoiceError}</p> : null}
+
+        <div className="mt-7 flex flex-col justify-end gap-3 border-t border-[var(--line)] pt-5 sm:flex-row sm:items-center">
           <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
+          {invoiceLoading ? (
+            <Button type="button" variant="secondary" disabled>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" /> Checking invoice...
+            </Button>
+          ) : invoiceId ? (
+            <Link href={`/invoices/${invoiceId}`}>
+              <Button type="button" variant="secondary">
+                <FileText className="size-4" aria-hidden="true" /> View Invoice
+              </Button>
+            </Link>
+          ) : !readOnlyDemo ? (
+            <Button type="button" variant="secondary" onClick={() => void createInvoice()} disabled={invoiceCreating}>
+              {invoiceCreating ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <FileText className="size-4" aria-hidden="true" />}
+              Create Invoice
+            </Button>
+          ) : null}
           {!readOnlyDemo ? <Button type="button" variant="primary" onClick={onEdit}><Pencil className="size-4" aria-hidden="true" /> Edit order</Button> : null}
         </div>
       </div>

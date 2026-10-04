@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   FileBarChart,
+  FileText,
   LayoutDashboard,
   Menu,
   Moon,
@@ -39,6 +40,7 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
       { label: "Customers", icon: Users },
       { label: "Products", icon: Package },
       { label: "Orders", icon: ShoppingCart },
+      { label: "Invoices", icon: FileText },
       { label: "Payments", icon: CircleDollarSign },
     ],
   },
@@ -77,6 +79,7 @@ export function DashboardShell({
     if (label === "Customers") return "/customers";
     if (label === "Products") return "/products";
     if (label === "Orders") return "/orders";
+    if (label === "Invoices") return "/invoices";
     return `#${label.toLowerCase()}`;
   }
 

@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { ensureCustomerIndexes, getCustomersCollection } from "@/server/db/models/customer";
+import { ensureInvoiceIndexes, getInvoicesCollection } from "@/server/db/models/invoice";
 import { ensureOrderIndexes, getOrdersCollection, orderStatuses, type OrderStatus } from "@/server/db/models/order";
 import { ensureProductIndexes, getProductsCollection } from "@/server/db/models/product";
 import {
@@ -75,12 +76,24 @@ export async function getDashboardData(ownerId: string, options?: { days?: numbe
   const rangeStart = new Date(rangeEnd);
   rangeStart.setUTCDate(rangeEnd.getUTCDate() - (days - 1));
 
-  await Promise.all([ensureCustomerIndexes(), ensureProductIndexes(), ensureOrderIndexes()]);
+  await Promise.all([ensureCustomerIndexes(), ensureProductIndexes(), ensureOrderIndexes(), ensureInvoiceIndexes()]);
 
   const customers = getCustomersCollection();
   const products = getProductsCollection();
   const orders = getOrdersCollection();
+  const invoices = getInvoicesCollection();
   const ownerFilter = { ownerId };
+  const now = new Date();
+
+  await invoices.updateMany(
+    {
+      ownerId,
+      status: { $in: ["issued", "partially_paid"] },
+      dueDate: { $lt: now },
+      outstandingAmount: { $gt: 0 },
+    },
+    { $set: { status: "overdue", updatedAt: now } },
+  );
 
   const [
     totalCustomers,
@@ -88,6 +101,9 @@ export async function getDashboardData(ownerId: string, options?: { days?: numbe
     lowStockProductsCount,
     statusGroups,
     revenueGroups,
+    invoiceFinance,
+    unpaidInvoiceCount,
+    overdueInvoiceCount,
     recentOrderDocs,
     recentCustomerDocs,
     lowStockDocs,
@@ -115,6 +131,20 @@ export async function getDashboardData(ownerId: string, options?: { days?: numbe
         },
       ])
       .toArray(),
+    invoices
+      .aggregate<{ _id: null; outstandingReceivables: number; collectedPayments: number }>([
+        { $match: { ownerId, status: { $ne: "cancelled" } } },
+        {
+          $group: {
+            _id: null,
+            outstandingReceivables: { $sum: "$outstandingAmount" },
+            collectedPayments: { $sum: "$paidAmount" },
+          },
+        },
+      ])
+      .toArray(),
+    invoices.countDocuments({ ownerId, status: { $ne: "cancelled" }, outstandingAmount: { $gt: 0 } }),
+    invoices.countDocuments({ ownerId, status: "overdue" }),
     orders
       .aggregate<Record<string, unknown>>([
         { $match: ownerFilter },
@@ -234,6 +264,10 @@ export async function getDashboardData(ownerId: string, options?: { days?: numbe
       completedOrders: statusCounts.completed,
       cancelledOrders: statusCounts.cancelled,
       lowStockProducts: lowStockProductsCount,
+      outstandingReceivables: normalizeMoney(invoiceFinance[0]?.outstandingReceivables ?? 0),
+      collectedPayments: normalizeMoney(invoiceFinance[0]?.collectedPayments ?? 0),
+      unpaidInvoiceCount,
+      overdueInvoiceCount,
     },
     recentOrders: recentOrderDocs.map((order) => {
       const firstName = typeof order.customerFirstName === "string" ? order.customerFirstName : "";

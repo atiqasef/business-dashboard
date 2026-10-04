@@ -30,6 +30,7 @@ export default defineConfig({
         "src/server/api/**/*.ts",
         "src/server/auth/**/*.ts",
         "src/server/dashboard/**/*.ts",
+        "src/server/invoices/**/*.ts",
         "src/server/db/models/**/*.ts",
         "src/app/api/customers/[id]/route.ts",
       ],

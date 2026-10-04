@@ -4,9 +4,11 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
+  FileText,
   Package,
   ShoppingCart,
   Users,
+  Wallet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,7 +94,7 @@ export function DashboardOverview({
     {
       label: "Total revenue",
       value: formatMoney(summary.totalRevenue),
-      detail: "Excludes cancelled orders",
+      detail: "Order revenue · excludes cancelled",
       icon: CircleDollarSign,
       tone: "accent" as const,
       accent: formatNumber(summary.completedOrders) + " completed",
@@ -132,9 +134,10 @@ export function DashboardOverview({
           <p className="mt-2 text-sm text-[var(--muted)]">Live business metrics from your customers, products, and orders.</p>
           {readOnlyDemo ? <Badge tone="accent" className="mt-3">Read-only demo</Badge> : null}
         </div>
-        <Link href="/orders" className="self-start sm:self-auto">
-          <Button variant="secondary"><ShoppingCart className="size-4" aria-hidden="true" />View orders</Button>
-        </Link>
+        <div className="flex flex-col gap-3 self-start sm:flex-row">
+          <Link href="/orders"><Button variant="secondary"><ShoppingCart className="size-4" aria-hidden="true" />View orders</Button></Link>
+          <Link href="/invoices"><Button variant="secondary"><FileText className="size-4" aria-hidden="true" />View invoices</Button></Link>
+        </div>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Business overview">
@@ -162,6 +165,58 @@ export function DashboardOverview({
                 <p className="text-2xl font-semibold tracking-[-0.03em]">{metric.value}</p>
                 <span className={`text-xs font-semibold ${metric.tone === "orange" ? "text-[var(--warning)]" : "text-[var(--muted)]"}`}>{metric.accent}</span>
               </div>
+              <p className="mt-1 text-xs text-[var(--muted)]">{metric.detail}</p>
+            </Card>
+          );
+        })}
+      </section>
+
+      <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Receivables overview">
+        {[
+          {
+            label: "Outstanding receivables",
+            value: formatMoney(summary.outstandingReceivables),
+            detail: "Unpaid invoice balances",
+            accent: `${formatNumber(summary.unpaidInvoiceCount)} unpaid`,
+            icon: Wallet,
+            tone: "warning" as const,
+          },
+          {
+            label: "Collected payments",
+            value: formatMoney(summary.collectedPayments),
+            detail: "Paid amount on active invoices",
+            accent: "Not order revenue",
+            icon: CircleDollarSign,
+            tone: "positive" as const,
+          },
+          {
+            label: "Overdue invoices",
+            value: formatNumber(summary.overdueInvoiceCount),
+            detail: "Past due with balance remaining",
+            accent: summary.overdueInvoiceCount ? "Needs follow-up" : "None overdue",
+            icon: FileText,
+            tone: "accent" as const,
+          },
+          {
+            label: "Order revenue",
+            value: formatMoney(summary.totalRevenue),
+            detail: "From non-cancelled orders",
+            accent: "Separate from collections",
+            icon: ShoppingCart,
+            tone: "blue" as const,
+          },
+        ].map((metric) => {
+          const Icon = metric.icon;
+          return (
+            <Card key={metric.label} padding="compact" className="min-h-32">
+              <div className="flex items-start justify-between">
+                <span className="grid size-10 place-items-center rounded-xl bg-[var(--surface-soft)] text-[var(--muted)]">
+                  <Icon className="size-5" aria-hidden="true" />
+                </span>
+                <span className="text-xs font-semibold text-[var(--muted)]">{metric.accent}</span>
+              </div>
+              <p className="mt-4 text-sm text-[var(--muted)]">{metric.label}</p>
+              <p className="mt-1 text-2xl font-semibold tracking-[-0.03em]">{metric.value}</p>
               <p className="mt-1 text-xs text-[var(--muted)]">{metric.detail}</p>
             </Card>
           );

@@ -56,6 +56,10 @@ describe("dashboard summary metrics", () => {
       completedOrders: 0,
       cancelledOrders: 0,
       lowStockProducts: 0,
+      outstandingReceivables: 0,
+      collectedPayments: 0,
+      unpaidInvoiceCount: 0,
+      overdueInvoiceCount: 0,
     });
     expect(data.recentOrders).toEqual([]);
     expect(data.recentCustomers).toEqual([]);

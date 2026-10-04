@@ -10,6 +10,12 @@ export type DashboardSummary = {
   completedOrders: number;
   cancelledOrders: number;
   lowStockProducts: number;
+  /** Sum of outstanding balances on non-cancelled invoices. */
+  outstandingReceivables: number;
+  /** Sum of paid amounts on non-cancelled invoices (collected payments). */
+  collectedPayments: number;
+  unpaidInvoiceCount: number;
+  overdueInvoiceCount: number;
 };
 
 export type DashboardRecentOrder = {
