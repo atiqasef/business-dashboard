@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "provision:demo": "tsx scripts/provision-demo.ts --local",
+    "provision:demo:production": "tsx scripts/provision-demo.ts --production",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthShell } from "@/features/auth/components/auth-shell";
 import { authClient } from "@/lib/auth-client";
+import { APP_HOME_PATH } from "@/lib/app-paths";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
@@ -60,7 +61,7 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push("/dashboard");
+      router.push(APP_HOME_PATH);
       router.refresh();
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Unable to create your account. Please try again."));

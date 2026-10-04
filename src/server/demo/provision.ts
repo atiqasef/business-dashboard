@@ -37,13 +37,18 @@ const date = (value: string) => new Date(`${value}T12:00:00.000Z`);
 
 async function getOrCreateDemoUser() {
   const users = db.collection<AuthUserDocument>("user");
-  const existing = await users.findOne({ email: DEMO_EMAIL }, { projection: { id: 1, email: 1 } });
+  const existing = await users.findOne(
+    { email: { $regex: `^${DEMO_EMAIL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } },
+    { projection: { id: 1, email: 1 } },
+  );
 
   if (existing) {
     const demoAccount = await getDemoAccountsCollection().findOne({ userId: existing.id });
-    if (!demoAccount || demoAccount.role !== DEMO_ROLE) {
+    if (demoAccount && demoAccount.role !== DEMO_ROLE) {
       throw new Error("The reserved demo email belongs to an account that is not the demo account");
     }
+    // Missing demoAccounts row is repaired; never claim a non-demo role.
+    await ensureDemoAccount(existing.id);
     return existing.id;
   }
 

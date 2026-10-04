@@ -19,11 +19,28 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Optional local demo seed (local Mongo only):
+### Demo account
+
+The login page exposes a public read-only demo account (`demo@businessdashboard.com`).
+
+- **Local seed** (localhost Mongo only):
 
 ```bash
 npm run provision:demo
 ```
+
+- **Production**: the “Sign in as demo” button also runs an idempotent server-side provision against the app’s configured MongoDB, then signs in and lands on `/`. Optional offline provision against Atlas:
+
+```bash
+# requires MONGODB_URI for the target database
+ALLOW_PRODUCTION_DEMO_PROVISION=1 npm run provision:demo:production
+```
+
+Demo users can view customers, products, orders, invoices, payments, and dashboard metrics. All mutations remain blocked by `assertDemoWriteAllowed`.
+
+### Auth landing
+
+Successful email/password login and demo login redirect to `/` (the live dashboard). `/dashboard` is a legacy welcome route and redirects authenticated users to `/`.
 
 ## Core workflow
 
@@ -69,13 +86,25 @@ npm test
 npm run test:watch
 npm run test:coverage
 npm run provision:demo
+npm run provision:demo:production
 ```
+
+### Required environment variables (Vercel)
+
+Set these in the Vercel project (values are never committed):
+
+- `BETTER_AUTH_SECRET`
+- `BETTER_AUTH_URL` (production site origin)
+- `NEXT_PUBLIC_APP_URL` (same production origin)
+- `MONGODB_URI`
+- `MONGODB_DB`
 
 ## Security notes
 
 - Owner scope always comes from the authenticated session
 - Browser-supplied `ownerId` / `userId` are never trusted for authorization
 - `.env.local`, `.vercel/`, and cookie jars are gitignored
+- Demo provisioning never deletes normal users or non-demo business data
 
 ## Intentionally deferred
 

@@ -14,6 +14,10 @@ vi.mock("@/lib/auth", () => ({
   auth: {
     api: {
       getSession: vi.fn(),
+      createUser: vi.fn(),
+      signInEmail: vi.fn(),
+      signUpEmail: vi.fn(),
+      signOut: vi.fn(),
     },
   },
 }));

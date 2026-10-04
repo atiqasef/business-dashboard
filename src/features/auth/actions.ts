@@ -3,6 +3,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { parseCookieHeader } from "@/lib/cookies";
+import { connectMongo } from "@/lib/db";
+import { isNextRedirectError } from "@/lib/redirect-error";
+import { APP_HOME_PATH } from "@/lib/app-paths";
+import { DEMO_EMAIL, DEMO_PASSWORD } from "@/server/demo/constants";
+import { provisionDemo } from "@/server/demo/provision";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
@@ -47,11 +52,12 @@ export async function registerUser(formData: FormData) {
     });
 
     if (result && "user" in result) {
-      redirect("/dashboard");
+      redirect(APP_HOME_PATH);
     }
 
     return { success: true };
   } catch (error: unknown) {
+    if (isNextRedirectError(error)) throw error;
     return {
       success: false,
       errors: {
@@ -79,6 +85,10 @@ export async function loginUser(formData: FormData) {
     return { success: false, errors };
   }
 
+  if (email.toLowerCase() === DEMO_EMAIL) {
+    return loginDemoUser();
+  }
+
   try {
     const result = await auth.api.signInEmail({
       body: {
@@ -89,14 +99,51 @@ export async function loginUser(formData: FormData) {
     });
 
     if ("user" in result) {
-      redirect("/dashboard");
+      redirect(APP_HOME_PATH);
     }
 
     return { success: true };
   } catch (error: unknown) {
+    if (isNextRedirectError(error)) throw error;
     return {
       success: false,
       errors: { form: getErrorMessage(error, "Login failed. Please try again.") },
+    };
+  }
+}
+
+/**
+ * Ensures the reserved demo account exists (idempotent), signs in, and lands on `/`.
+ * Safe for production: only creates/updates the intentional demo resources.
+ */
+export async function loginDemoUser() {
+  try {
+    await connectMongo();
+    await provisionDemo();
+
+    const result = await auth.api.signInEmail({
+      body: {
+        email: DEMO_EMAIL,
+        password: DEMO_PASSWORD,
+      },
+      headers: await parseCookieHeader(),
+    });
+
+    if ("user" in result) {
+      redirect(APP_HOME_PATH);
+    }
+
+    return {
+      success: false as const,
+      errors: { form: "Demo login failed. Please try again." },
+    };
+  } catch (error: unknown) {
+    if (isNextRedirectError(error)) throw error;
+    return {
+      success: false as const,
+      errors: {
+        form: getErrorMessage(error, "Unable to sign in to the demo account."),
+      },
     };
   }
 }

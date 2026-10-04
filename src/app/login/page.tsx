@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { loginDemoUser } from "@/features/auth/actions";
 import { AuthShell } from "@/features/auth/components/auth-shell";
 import { authClient } from "@/lib/auth-client";
+import { APP_HOME_PATH } from "@/lib/app-paths";
+import { isNextRedirectError } from "@/lib/redirect-error";
 import { DEMO_EMAIL, DEMO_NAME, DEMO_PASSWORD } from "@/server/demo/constants";
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -26,6 +29,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [demoPending, startDemoTransition] = useTransition();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,6 +43,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      if (email.trim().toLowerCase() === DEMO_EMAIL) {
+        const result = await loginDemoUser();
+        if (result?.success === false) {
+          setError(result.errors.form || "Unable to sign in to the demo account.");
+        }
+        return;
+      }
+
       const result = await authClient.signIn.email({
         email,
         password,
@@ -49,14 +61,34 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/dashboard");
+      router.push(APP_HOME_PATH);
       router.refresh();
     } catch (err: unknown) {
+      if (isNextRedirectError(err)) return;
       setError(getErrorMessage(err, "Unable to sign in. Please try again."));
     } finally {
       setLoading(false);
     }
   }
+
+  function handleDemoLogin() {
+    setError("");
+    setEmail(DEMO_EMAIL);
+    setPassword(DEMO_PASSWORD);
+    startDemoTransition(async () => {
+      try {
+        const result = await loginDemoUser();
+        if (result?.success === false) {
+          setError(result.errors.form || "Unable to sign in to the demo account.");
+        }
+      } catch (err: unknown) {
+        if (isNextRedirectError(err)) return;
+        setError(getErrorMessage(err, "Unable to sign in to the demo account."));
+      }
+    });
+  }
+
+  const busy = loading || demoPending;
 
   return (
     <AuthShell
@@ -76,13 +108,10 @@ export default function LoginPage() {
           type="button"
           variant="secondary"
           className="mt-4 w-full justify-center"
-          onClick={() => {
-            setEmail(DEMO_EMAIL);
-            setPassword(DEMO_PASSWORD);
-            setError("");
-          }}
+          disabled={busy}
+          onClick={handleDemoLogin}
         >
-          Use demo credentials
+          {demoPending ? <><Loader2 className="size-4 animate-spin" /> Signing in as demo...</> : "Sign in as demo"}
         </Button>
       </div>
 
@@ -99,6 +128,7 @@ export default function LoginPage() {
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
             className="h-12"
+            disabled={busy}
           />
         </div>
 
@@ -115,6 +145,7 @@ export default function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
               className="h-12 pr-11"
+              disabled={busy}
             />
             <button
               type="button"
@@ -134,7 +165,7 @@ export default function LoginPage() {
           </div>
         ) : null}
 
-        <Button type="submit" variant="primary" className="h-12 w-full justify-center" disabled={loading}>
+        <Button type="submit" variant="primary" className="h-12 w-full justify-center" disabled={busy}>
           {loading ? <><Loader2 className="size-4 animate-spin" /> Signing in...</> : "Sign in"}
         </Button>
 
