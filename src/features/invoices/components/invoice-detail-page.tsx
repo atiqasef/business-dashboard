@@ -6,7 +6,10 @@ import {
   ArrowLeft,
   Banknote,
   BellRing,
+  Copy,
   Download,
+  ExternalLink,
+  Link2,
   Loader2,
   Mail,
   Printer,
@@ -82,6 +85,14 @@ type PaymentForm = {
 };
 
 type PaymentFormErrors = Partial<Record<keyof PaymentForm | "form", string>>;
+
+type PublicLinkState = {
+  status: "none" | "active" | "expired" | "revoked";
+  expiresAt: string | null;
+  createdAt: string | null;
+  revokedAt: string | null;
+  url?: string;
+};
 
 const PAYMENT_METHODS: PaymentMethod[] = ["cash", "bank_transfer", "card", "mobile_banking", "other"];
 
@@ -172,6 +183,8 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm(0));
   const [paymentErrors, setPaymentErrors] = useState<PaymentFormErrors>({});
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [publicLink, setPublicLink] = useState<PublicLinkState | null>(null);
+  const [publicLinkBusy, setPublicLinkBusy] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -181,18 +194,32 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
       setError("");
 
       try {
-        const response = await fetch(`/api/invoices/${invoiceId}`, {
-          signal: controller.signal,
-          credentials: "include",
-        });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || "Unable to load invoice.");
+        const [invoiceResponse, linkResponse] = await Promise.all([
+          fetch(`/api/invoices/${invoiceId}`, {
+            signal: controller.signal,
+            credentials: "include",
+          }),
+          fetch(`/api/invoices/${invoiceId}/public-link`, {
+            signal: controller.signal,
+            credentials: "include",
+          }),
+        ]);
+        const payload = await invoiceResponse.json();
+        if (!invoiceResponse.ok) throw new Error(payload.error || "Unable to load invoice.");
 
         setInvoice(payload.data as InvoiceDetail);
+
+        if (linkResponse.ok) {
+          const linkPayload = (await linkResponse.json()) as { data?: PublicLinkState };
+          setPublicLink(linkPayload.data ?? null);
+        } else {
+          setPublicLink(null);
+        }
       } catch (loadError) {
         if (loadError instanceof DOMException && loadError.name === "AbortError") return;
         setError(loadError instanceof Error ? loadError.message : "Unable to load invoice.");
         setInvoice(null);
+        setPublicLink(null);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -359,6 +386,69 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
       setError(reminderError instanceof Error ? reminderError.message : "Unable to send payment reminder.");
     } finally {
       setSendingReminder(false);
+    }
+  }
+
+  async function createOrRegeneratePublicLink(regenerate: boolean) {
+    if (!invoice || publicLinkBusy || readOnlyDemo) return;
+    if (
+      regenerate &&
+      !window.confirm("Regenerate this public link? The previous link will stop working immediately.")
+    ) {
+      return;
+    }
+
+    setPublicLinkBusy(true);
+    setError("");
+    setFeedback("");
+
+    try {
+      const response = await fetch(`/api/invoices/${invoice.id}/public-link`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const payload = (await response.json().catch(() => null)) as { data?: PublicLinkState; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error || "Unable to create public link.");
+      setPublicLink(payload?.data ?? null);
+      setFeedback(regenerate ? "Public invoice link regenerated." : "Public invoice link created.");
+    } catch (linkError) {
+      setError(linkError instanceof Error ? linkError.message : "Unable to create public link.");
+    } finally {
+      setPublicLinkBusy(false);
+    }
+  }
+
+  async function revokePublicLink() {
+    if (!invoice || publicLinkBusy || readOnlyDemo) return;
+    if (!window.confirm("Revoke the public invoice link? Customers will no longer be able to open it.")) return;
+
+    setPublicLinkBusy(true);
+    setError("");
+    setFeedback("");
+
+    try {
+      const response = await fetch(`/api/invoices/${invoice.id}/public-link`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const payload = (await response.json().catch(() => null)) as { data?: PublicLinkState; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error || "Unable to revoke public link.");
+      setPublicLink(payload?.data ?? null);
+      setFeedback("Public invoice link revoked.");
+    } catch (linkError) {
+      setError(linkError instanceof Error ? linkError.message : "Unable to revoke public link.");
+    } finally {
+      setPublicLinkBusy(false);
+    }
+  }
+
+  async function copyPublicLink() {
+    if (!publicLink?.url) return;
+    try {
+      await navigator.clipboard.writeText(publicLink.url);
+      setFeedback("Public invoice link copied to clipboard.");
+    } catch {
+      setError("Unable to copy link. You can select and copy it manually.");
     }
   }
 
@@ -698,6 +788,86 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
               )}
             </Card>
           </div>
+
+          <Card className="mt-6 print:hidden">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Customer invoice link</h2>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  Share a secure link so customers can view this invoice without a Ledger account.
+                </p>
+              </div>
+              {publicLink?.status === "active" ? <Badge tone="positive">Active</Badge> : null}
+              {publicLink?.status === "expired" ? <Badge tone="warning">Expired</Badge> : null}
+              {publicLink?.status === "revoked" ? <Badge tone="neutral">Revoked</Badge> : null}
+              {publicLink?.status === "none" || !publicLink ? <Badge tone="neutral">No active link</Badge> : null}
+            </div>
+
+            {publicLink?.status === "active" && publicLink.url ? (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 font-mono text-xs break-all text-[var(--ink)]">
+                  {publicLink.url}
+                </div>
+                <p className="text-sm text-[var(--muted)]">
+                  Expires {publicLink.expiresAt ? formatDate(publicLink.expiresAt) : "—"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" className="h-9" onClick={() => void copyPublicLink()}>
+                    <Copy className="size-4" aria-hidden="true" /> Copy Link
+                  </Button>
+                  <a href={publicLink.url} target="_blank" rel="noopener noreferrer">
+                    <Button type="button" variant="secondary" className="h-9">
+                      <ExternalLink className="size-4" aria-hidden="true" /> Open Link
+                    </Button>
+                  </a>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-9"
+                    onClick={() => void createOrRegeneratePublicLink(true)}
+                    disabled={publicLinkBusy || readOnlyDemo}
+                    title={readOnlyDemo ? "Demo account cannot regenerate links." : "Regenerate public link"}
+                  >
+                    {publicLinkBusy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="size-4" aria-hidden="true" />}
+                    Regenerate
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-9 text-red-600"
+                    onClick={() => void revokePublicLink()}
+                    disabled={publicLinkBusy || readOnlyDemo}
+                    title={readOnlyDemo ? "Demo account cannot revoke links." : "Revoke public link"}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="h-9"
+                  onClick={() => void createOrRegeneratePublicLink(false)}
+                  disabled={publicLinkBusy || readOnlyDemo}
+                  title={readOnlyDemo ? "Demo account cannot create public links." : "Create public invoice link"}
+                >
+                  {publicLinkBusy ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Link2 className="size-4" aria-hidden="true" />
+                  )}
+                  {publicLink?.status === "expired" || publicLink?.status === "revoked"
+                    ? "Create New Link"
+                    : "Create Public Link"}
+                </Button>
+                {readOnlyDemo ? (
+                  <p className="text-sm text-[var(--muted)]">Demo accounts can view link state but cannot create or revoke links.</p>
+                ) : null}
+              </div>
+            )}
+          </Card>
         </div>
       )}
 

@@ -11,6 +11,7 @@ import {
 import { sendEmail } from "@/server/email/send-email";
 import { EmailConfigurationError, EmailDeliveryError } from "@/server/email/types";
 import { buildInvoiceReminderEmailContent } from "@/server/email/templates/invoice-reminder";
+import { ensurePublicInvoiceUrl } from "@/server/invoices/public-access";
 import { buildInvoicePdfBuffer, invoicePdfFilename } from "@/server/invoices/pdf";
 import { deriveInvoiceStatus } from "@/server/invoices/status";
 import {
@@ -157,12 +158,14 @@ export async function sendInvoiceReminder(options: {
       branding,
     });
 
+    const invoiceUrl = await ensurePublicInvoiceUrl(ownerId, invoiceId);
     const content = buildInvoiceReminderEmailContent({
       invoice,
       status,
       customerName,
       reminderType: type,
       branding,
+      invoiceUrl,
     });
 
     const result = await sendEmail({

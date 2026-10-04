@@ -7,6 +7,7 @@ import { ensureInvoiceIndexes, getInvoicesCollection } from "@/server/db/models/
 import { sendEmail } from "@/server/email/send-email";
 import { EmailConfigurationError, EmailDeliveryError } from "@/server/email/types";
 import { buildInvoiceEmailContent } from "@/server/invoices/email-content";
+import { ensurePublicInvoiceUrl } from "@/server/invoices/public-access";
 import { buildInvoicePdfBuffer, invoicePdfFilename } from "@/server/invoices/pdf";
 import { deriveInvoiceStatus } from "@/server/invoices/status";
 import { getInvoiceBusinessBranding } from "@/server/settings/business-profile";
@@ -80,11 +81,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     });
 
     const filename = invoicePdfFilename(invoice.invoiceNumber);
+    const invoiceUrl = await ensurePublicInvoiceUrl(session.user.id, invoice._id!);
     const content = buildInvoiceEmailContent({
       invoice,
       status,
       customerName,
       branding,
+      invoiceUrl,
     });
 
     const result = await sendEmail({

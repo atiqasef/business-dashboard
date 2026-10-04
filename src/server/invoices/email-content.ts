@@ -41,6 +41,8 @@ export function buildInvoiceEmailContent(options: {
   /** @deprecated Prefer `branding`. */
   businessName?: string;
   branding?: InvoiceBusinessBranding;
+  /** Server-generated secure customer invoice URL. */
+  invoiceUrl?: string | null;
 }) {
   const branding: InvoiceBusinessBranding = options.branding ?? {
     businessName: options.businessName?.trim() || "Ledger",
@@ -61,6 +63,7 @@ export function buildInvoiceEmailContent(options: {
 
   const businessName = branding.businessName.trim() || "Ledger";
   const { invoice, status, customerName } = options;
+  const invoiceUrl = options.invoiceUrl?.trim() || null;
   const greetingName = customerName.trim() || "there";
   const issueDate = formatDate(invoice.issueDate);
   const dueDate = invoice.dueDate ? formatDate(invoice.dueDate) : null;
@@ -84,6 +87,7 @@ export function buildInvoiceEmailContent(options: {
     `Outstanding: ${outstanding}`,
     `Status: ${statusLabel}`,
     "",
+    ...(invoiceUrl ? [`View invoice online: ${invoiceUrl}`, ""] : []),
     "The invoice PDF is attached to this email.",
     ...(branding.invoiceNotes ? ["", branding.invoiceNotes] : []),
     "",
@@ -103,6 +107,16 @@ export function buildInvoiceEmailContent(options: {
 
   const notesHtml = branding.invoiceNotes
     ? `<tr><td style="padding-top:16px;font-size:13px;line-height:1.6;color:#334039;">${escapeHtml(branding.invoiceNotes)}</td></tr>`
+    : "";
+
+  const openInvoiceHtml = invoiceUrl
+    ? `<tr>
+              <td style="padding-top:20px;">
+                <a href="${escapeHtml(invoiceUrl)}" style="display:inline-block;background:#20332e;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 18px;border-radius:10px;">
+                  Open Invoice
+                </a>
+              </td>
+            </tr>`
     : "";
 
   const html = `
@@ -141,6 +155,7 @@ export function buildInvoiceEmailContent(options: {
                 </table>
               </td>
             </tr>
+            ${openInvoiceHtml}
             <tr>
               <td style="padding-top:20px;font-size:14px;line-height:1.6;color:#334039;">
                 The invoice PDF is attached to this email.

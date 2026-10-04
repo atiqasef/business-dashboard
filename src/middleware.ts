@@ -11,6 +11,11 @@ function hasSessionCookie(request: NextRequest) {
   );
 }
 
+function isPublicInvoicePath(pathname: string) {
+  // Customer-facing invoice portal — authorized by bearer token in the path, not session.
+  return pathname === "/invoice" || pathname.startsWith("/invoice/");
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -18,7 +23,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (publicRoutes.has(pathname)) {
+  if (publicRoutes.has(pathname) || isPublicInvoicePath(pathname)) {
     return NextResponse.next();
   }
 
