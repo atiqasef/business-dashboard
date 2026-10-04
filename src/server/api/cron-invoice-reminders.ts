@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { authorizeCronRequest, processInvoiceReminderCron } from "@/server/reminders/process-cron";
 
+const NO_STORE = { "Cache-Control": "no-store" } as const;
+
 function errorResponse(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status });
+  return NextResponse.json({ error: message }, { status, headers: NO_STORE });
 }
 
 async function handleCron(request: Request) {
@@ -12,7 +14,7 @@ async function handleCron(request: Request) {
 
   try {
     const summary = await processInvoiceReminderCron();
-    return NextResponse.json(summary);
+    return NextResponse.json(summary, { headers: NO_STORE });
   } catch (error) {
     console.error("Invoice reminder cron failed", error instanceof Error ? error.name : "unknown");
     return errorResponse("Unable to process invoice reminders", 500);

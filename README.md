@@ -261,23 +261,41 @@ AI executive summary:
 
 Demo accounts may view insights/summaries for demo data only (no mutations, emails, payments, or settings changes).
 
-### Required environment variables (Vercel)
+### Production environment variables (Vercel)
 
-Set these in the Vercel project (values are never committed):
+Values are never committed. See `.env.example`.
+
+**Required (app cannot run safely in production without these):**
 
 - `BETTER_AUTH_SECRET`
 - `BETTER_AUTH_URL` (production site origin)
-- `NEXT_PUBLIC_APP_URL` (same production origin)
+- `NEXT_PUBLIC_APP_URL` (same production origin; no secrets)
 - `MONGODB_URI`
 - `MONGODB_DB`
-- `RESEND_API_KEY` (invoice email)
-- `EMAIL_FROM` (verified sender address)
-- `EMAIL_FROM_NAME` (optional display name)
-- `CRON_SECRET` (invoice reminder cron)
-- `STRIPE_SECRET_KEY` (optional online payments)
-- `STRIPE_WEBHOOK_SECRET` (optional online payments)
-- `OPENAI_API_KEY` (optional AI assistant)
-- `OPENAI_MODEL` (optional; defaults to `gpt-4o-mini`)
+
+**Optional (features degrade gracefully when unset):**
+
+- `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME` — invoice/reminder email
+- `CRON_SECRET` — authorizes `GET/POST /api/cron/invoice-reminders` (see `vercel.json` daily 09:00 UTC schedule)
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` — online Checkout + webhook
+- `OPENAI_API_KEY`, `OPENAI_MODEL` — AI assistant + optional insight executive summary
+
+Public invoice/portal link TTL is a server constant (30 days), not an environment variable.
+
+### Health check
+
+```text
+GET /api/health
+```
+
+Unauthenticated deployment probe. Returns `{ status, checks }` with MongoDB ping + optional integration configuration flags (`configured` / `not_configured`). Never returns secrets, connection strings, owner IDs, or stack traces. Uses `Cache-Control: no-store`. HTTP `200` when ready, `503` when degraded.
+
+### Deployment notes
+
+1. Set required env vars in the host (Vercel recommended).
+2. Deploy; confirm `GET /api/health` returns `status: "ok"`.
+3. Optional: configure Resend, Stripe webhook (`/api/webhooks/stripe`), OpenAI, and `CRON_SECRET` for Vercel Cron.
+4. Provision the demo account only when you intentionally want the public demo login.
 
 ## Security notes
 

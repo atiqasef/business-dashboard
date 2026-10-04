@@ -41,14 +41,20 @@ function withMongoConnection(handler: (request: Request) => Promise<Response>) {
 			await connectMongo();
 		} catch (error) {
 			logAuthFailure("mongodb-connection", error);
-			return NextResponse.json({ error: "Authentication service unavailable" }, { status: 503 });
+			return NextResponse.json(
+				{ error: "Authentication service unavailable" },
+				{ status: 503, headers: { "Cache-Control": "no-store" } },
+			);
 		}
 
 		try {
 			return await handler(request);
 		} catch (error) {
 			logAuthFailure("better-auth-handler", error);
-			return NextResponse.json({ error: "Authentication service unavailable" }, { status: 503 });
+			return NextResponse.json(
+				{ error: "Authentication service unavailable" },
+				{ status: 503, headers: { "Cache-Control": "no-store" } },
+			);
 		}
 	};
 }
