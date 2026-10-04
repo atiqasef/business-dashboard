@@ -10,6 +10,7 @@ export const WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   { label: "Orders", href: "/orders" },
   { label: "Invoices", href: "/invoices" },
   { label: "Reports", href: "/reports" },
+  { label: "Settings", href: "/settings" },
 ];
 
 export function isNavItemActive(pathname: string, href: string) {

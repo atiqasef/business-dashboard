@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Settings as SettingsIcon,
   ShoppingCart,
   Sun,
   Users,
@@ -37,6 +38,7 @@ const navIcons: Record<string, LucideIcon> = {
   Orders: ShoppingCart,
   Invoices: FileText,
   Reports: ChartColumn,
+  Settings: SettingsIcon,
 };
 
 export function DashboardShell({

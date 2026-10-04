@@ -9,6 +9,7 @@ import { EmailConfigurationError, EmailDeliveryError } from "@/server/email/type
 import { buildInvoiceEmailContent } from "@/server/invoices/email-content";
 import { buildInvoicePdfBuffer, invoicePdfFilename } from "@/server/invoices/pdf";
 import { deriveInvoiceStatus } from "@/server/invoices/status";
+import { getInvoiceBusinessBranding } from "@/server/settings/business-profile";
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -62,6 +63,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const status = deriveInvoiceStatus(invoice);
     const customerName = `${customer.firstName} ${customer.lastName}`.trim() || invoice.customerSnapshot.name;
+    const branding = await getInvoiceBusinessBranding(session.user.id);
     const pdfBuffer = await buildInvoicePdfBuffer({
       invoice,
       status,
@@ -74,7 +76,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         city: customer.city ?? null,
         country: customer.country ?? null,
       },
-      businessName: "Ledger",
+      branding,
     });
 
     const filename = invoicePdfFilename(invoice.invoiceNumber);
@@ -82,7 +84,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       invoice,
       status,
       customerName,
-      businessName: "Ledger",
+      branding,
     });
 
     const result = await sendEmail({
@@ -90,6 +92,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       subject: content.subject,
       html: content.html,
       text: content.text,
+      // Display name only — EMAIL_FROM address remains server-controlled.
+      fromDisplayName: branding.businessName !== "Ledger" ? branding.businessName : undefined,
       attachments: [
         {
           filename,

@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import type { InvoiceDocument, InvoiceStatus } from "@/server/db/models/invoice";
+import type { InvoiceBusinessBranding } from "@/server/settings/business-profile";
 
 export type InvoicePdfCustomerDetails = {
   name: string;
@@ -29,31 +30,54 @@ function formatStatusLabel(status: InvoiceStatus) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function formatBusinessAddress(address: InvoiceBusinessBranding["address"]) {
+  return [address.street, [address.city, address.state].filter(Boolean).join(", "), address.postalCode, address.country]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function invoicePdfFilename(invoiceNumber: string) {
   const safe = invoiceNumber.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
   return `invoice-${safe || "document"}.pdf`;
 }
 
 function drawHorizontalRule(doc: PDFKit.PDFDocument, y: number, left: number, right: number) {
-  doc
-    .moveTo(left, y)
-    .lineTo(right, y)
-    .strokeColor("#D7DDD8")
-    .lineWidth(1)
-    .stroke();
+  doc.moveTo(left, y).lineTo(right, y).strokeColor("#D7DDD8").lineWidth(1).stroke();
 }
 
 export async function buildInvoicePdfBuffer(options: {
   invoice: InvoiceDocument;
   status: InvoiceStatus;
   customer: InvoicePdfCustomerDetails;
+  /** @deprecated Prefer `branding`. Kept for backward-compatible call sites/tests. */
   businessName?: string;
+  branding?: InvoiceBusinessBranding;
 }): Promise<Buffer> {
   const { invoice, status, customer } = options;
-  const businessName = options.businessName?.trim() || "Ledger";
+  const branding: InvoiceBusinessBranding = options.branding ?? {
+    businessName: options.businessName?.trim() || "Ledger",
+    legalName: null,
+    email: null,
+    phone: null,
+    website: null,
+    address: {
+      street: null,
+      city: null,
+      state: null,
+      postalCode: null,
+      country: null,
+    },
+    invoiceNotes: null,
+    logoUrl: null,
+  };
+  const businessName = branding.businessName.trim() || "Ledger";
 
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", margin: 50, info: { Title: `Invoice ${invoice.invoiceNumber}`, Author: businessName } });
+    const doc = new PDFDocument({
+      size: "A4",
+      margin: 50,
+      info: { Title: `Invoice ${invoice.invoiceNumber}`, Author: businessName },
+    });
     const chunks: Buffer[] = [];
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -65,24 +89,48 @@ export async function buildInvoicePdfBuffer(options: {
     const width = right - left;
 
     doc.fillColor("#1F2A24").font("Helvetica-Bold").fontSize(20).text(businessName, left, 48, { width: width * 0.55 });
-    doc.font("Helvetica").fontSize(10).fillColor("#66736B").text("Business Management Dashboard", left, 74);
+
+    let headerY = 74;
+    doc.font("Helvetica").fontSize(10).fillColor("#66736B");
+    if (branding.legalName && branding.legalName !== businessName) {
+      doc.text(branding.legalName, left, headerY, { width: width * 0.55 });
+      headerY += 14;
+    } else {
+      doc.text("Business Management Dashboard", left, headerY);
+      headerY += 14;
+    }
+
+    const contactLines = [
+      branding.email,
+      branding.phone,
+      branding.website,
+      formatBusinessAddress(branding.address) || null,
+    ].filter(Boolean) as string[];
+
+    for (const line of contactLines) {
+      doc.text(line, left, headerY, { width: width * 0.55 });
+      headerY += 13;
+    }
 
     doc.fillColor("#1F2A24").font("Helvetica-Bold").fontSize(22).text("INVOICE", left, 48, { width, align: "right" });
     doc.font("Helvetica").fontSize(11).fillColor("#334039");
     doc.text(invoice.invoiceNumber, left, 78, { width, align: "right" });
     doc.text(`Status: ${formatStatusLabel(status)}`, left, 94, { width, align: "right" });
 
-    drawHorizontalRule(doc, 120, left, right);
+    const ruleY = Math.max(headerY + 10, 120);
+    drawHorizontalRule(doc, ruleY, left, right);
 
-    doc.font("Helvetica-Bold").fontSize(9).fillColor("#66736B").text("ISSUE DATE", left, 138);
-    doc.font("Helvetica").fontSize(11).fillColor("#1F2A24").text(formatDate(invoice.issueDate), left, 152);
-    doc.font("Helvetica-Bold").fontSize(9).fillColor("#66736B").text("DUE DATE", left + 160, 138);
-    doc.font("Helvetica").fontSize(11).fillColor("#1F2A24").text(formatDate(invoice.dueDate), left + 160, 152);
+    const metaTop = ruleY + 18;
+    doc.font("Helvetica-Bold").fontSize(9).fillColor("#66736B").text("ISSUE DATE", left, metaTop);
+    doc.font("Helvetica").fontSize(11).fillColor("#1F2A24").text(formatDate(invoice.issueDate), left, metaTop + 14);
+    doc.font("Helvetica-Bold").fontSize(9).fillColor("#66736B").text("DUE DATE", left + 160, metaTop);
+    doc.font("Helvetica").fontSize(11).fillColor("#1F2A24").text(formatDate(invoice.dueDate), left + 160, metaTop + 14);
 
-    doc.font("Helvetica-Bold").fontSize(9).fillColor("#66736B").text("BILL TO", left, 190);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor("#1F2A24").text(customer.name, left, 206);
+    const billTop = metaTop + 52;
+    doc.font("Helvetica-Bold").fontSize(9).fillColor("#66736B").text("BILL TO", left, billTop);
+    doc.font("Helvetica-Bold").fontSize(12).fillColor("#1F2A24").text(customer.name, left, billTop + 16);
 
-    let customerY = 224;
+    let customerY = billTop + 34;
     doc.font("Helvetica").fontSize(10).fillColor("#334039");
     if (customer.company) {
       doc.text(customer.company, left, customerY);
@@ -102,7 +150,7 @@ export async function buildInvoicePdfBuffer(options: {
       customerY += 14;
     }
 
-    const tableTop = Math.max(customerY + 24, 280);
+    const tableTop = Math.max(customerY + 24, billTop + 90);
     const colProduct = left;
     const colQty = left + width * 0.52;
     const colUnit = left + width * 0.64;
@@ -159,18 +207,19 @@ export async function buildInvoicePdfBuffer(options: {
     summaryY += 14;
     doc.font("Helvetica").fontSize(10).fillColor("#1F2A24").text(formatStatusLabel(status), left, summaryY);
 
-    if (invoice.notes) {
+    const notes = invoice.notes || branding.invoiceNotes;
+    if (notes) {
       summaryY += 28;
-      doc.font("Helvetica-Bold").fontSize(9).fillColor("#66736B").text("NOTES", left, summaryY);
+      doc.font("Helvetica-Bold").fontSize(9).fillColor("#66736B").text(invoice.notes ? "NOTES" : "DEFAULT NOTES", left, summaryY);
       summaryY += 14;
-      doc.font("Helvetica").fontSize(10).fillColor("#334039").text(invoice.notes, left, summaryY, { width });
+      doc.font("Helvetica").fontSize(10).fillColor("#334039").text(notes, left, summaryY, { width });
     }
 
     doc
       .font("Helvetica")
       .fontSize(8)
       .fillColor("#8A968F")
-      .text("Generated by Ledger · Amounts shown in USD", left, doc.page.height - 40, {
+      .text(`Generated by ${businessName} · Amounts shown in USD`, left, doc.page.height - 40, {
         width,
         align: "center",
       });

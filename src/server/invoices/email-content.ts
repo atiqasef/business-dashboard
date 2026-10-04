@@ -1,4 +1,5 @@
 import type { InvoiceDocument, InvoiceStatus } from "@/server/db/models/invoice";
+import type { InvoiceBusinessBranding } from "@/server/settings/business-profile";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -18,13 +19,47 @@ function formatStatusLabel(status: InvoiceStatus) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatAddressLine(address: InvoiceBusinessBranding["address"]) {
+  return [address.street, [address.city, address.state].filter(Boolean).join(", "), address.postalCode, address.country]
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function buildInvoiceEmailContent(options: {
   invoice: InvoiceDocument;
   status: InvoiceStatus;
   customerName: string;
+  /** @deprecated Prefer `branding`. */
   businessName?: string;
+  branding?: InvoiceBusinessBranding;
 }) {
-  const businessName = options.businessName?.trim() || "Ledger";
+  const branding: InvoiceBusinessBranding = options.branding ?? {
+    businessName: options.businessName?.trim() || "Ledger",
+    legalName: null,
+    email: null,
+    phone: null,
+    website: null,
+    address: {
+      street: null,
+      city: null,
+      state: null,
+      postalCode: null,
+      country: null,
+    },
+    invoiceNotes: null,
+    logoUrl: null,
+  };
+
+  const businessName = branding.businessName.trim() || "Ledger";
   const { invoice, status, customerName } = options;
   const greetingName = customerName.trim() || "there";
   const issueDate = formatDate(invoice.issueDate);
@@ -32,6 +67,8 @@ export function buildInvoiceEmailContent(options: {
   const total = formatMoney(invoice.total);
   const outstanding = formatMoney(invoice.outstandingAmount);
   const statusLabel = formatStatusLabel(status);
+  const addressLine = formatAddressLine(branding.address);
+  const contactLines = [branding.email, branding.phone, branding.website, addressLine].filter(Boolean) as string[];
 
   const subject = `Invoice ${invoice.invoiceNumber} from ${businessName}`;
 
@@ -48,12 +85,25 @@ export function buildInvoiceEmailContent(options: {
     `Status: ${statusLabel}`,
     "",
     "The invoice PDF is attached to this email.",
+    ...(branding.invoiceNotes ? ["", branding.invoiceNotes] : []),
     "",
     "Thank you for your business.",
     businessName,
+    ...(branding.legalName && branding.legalName !== businessName ? [branding.legalName] : []),
+    ...contactLines,
   ];
 
   const text = textLines.join("\n");
+
+  const contactHtml = contactLines.length
+    ? `<div style="padding-top:8px;font-size:12px;line-height:1.6;color:#66736b;">${contactLines
+        .map((line) => escapeHtml(line))
+        .join("<br />")}</div>`
+    : "";
+
+  const notesHtml = branding.invoiceNotes
+    ? `<tr><td style="padding-top:16px;font-size:13px;line-height:1.6;color:#334039;">${escapeHtml(branding.invoiceNotes)}</td></tr>`
+    : "";
 
   const html = `
 <!DOCTYPE html>
@@ -96,10 +146,13 @@ export function buildInvoiceEmailContent(options: {
                 The invoice PDF is attached to this email.
               </td>
             </tr>
+            ${notesHtml}
             <tr>
               <td style="padding-top:24px;font-size:14px;line-height:1.6;color:#334039;">
                 Thank you for your business.<br />
-                ${escapeHtml(businessName)}
+                <strong>${escapeHtml(businessName)}</strong>
+                ${branding.legalName && branding.legalName !== businessName ? `<br />${escapeHtml(branding.legalName)}` : ""}
+                ${contactHtml}
               </td>
             </tr>
           </table>
@@ -111,13 +164,4 @@ export function buildInvoiceEmailContent(options: {
 `.trim();
 
   return { subject, html, text };
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }

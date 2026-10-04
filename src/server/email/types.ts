@@ -9,6 +9,8 @@ export type SendEmailInput = {
   subject: string;
   html: string;
   text: string;
+  /** Optional From display name only — never overrides the server EMAIL_FROM address. */
+  fromDisplayName?: string;
   attachments?: EmailAttachment[];
 };
 

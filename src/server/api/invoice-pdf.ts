@@ -5,6 +5,7 @@ import { getCustomersCollection } from "@/server/db/models/customer";
 import { ensureInvoiceIndexes, getInvoicesCollection } from "@/server/db/models/invoice";
 import { buildInvoicePdfBuffer, invoicePdfFilename } from "@/server/invoices/pdf";
 import { deriveInvoiceStatus } from "@/server/invoices/status";
+import { getInvoiceBusinessBranding } from "@/server/settings/business-profile";
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -38,6 +39,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     // Derive status for display only — do not persist changes from the PDF route.
     const status = deriveInvoiceStatus(invoice);
+    const branding = await getInvoiceBusinessBranding(session.user.id);
     const pdfBuffer = await buildInvoicePdfBuffer({
       invoice,
       status,
@@ -50,7 +52,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         city: customer?.city ?? null,
         country: customer?.country ?? null,
       },
-      businessName: "Ledger",
+      branding,
     });
 
     const filename = invoicePdfFilename(invoice.invoiceNumber);

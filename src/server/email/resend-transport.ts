@@ -4,7 +4,8 @@ import { EmailDeliveryError, type SendEmailInput, type SendEmailResult } from "@
 
 export async function sendWithResend(config: EmailConfig, input: SendEmailInput): Promise<SendEmailResult> {
   const resend = new Resend(config.apiKey);
-  const from = config.fromName ? `${config.fromName} <${config.from}>` : config.from;
+  const displayName = input.fromDisplayName?.trim() || config.fromName;
+  const from = displayName ? `${displayName} <${config.from}>` : config.from;
 
   const { data, error } = await resend.emails.send({
     from,
