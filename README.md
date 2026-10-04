@@ -1,497 +1,315 @@
-# Ledger — Business Management SaaS
+# Business Management SaaS
 
-A production-style business workspace for small operators: customers, catalog, orders, invoices, payments, and the operational tooling around them.
+A production-oriented full-stack business management platform for managing customers, products, orders, invoices, payments, reporting, and business operations from a single dashboard.
 
-It is built as a server-first Next.js application. Ownership, money, and public access are decided on the server. The browser never chooses the tenant, the plan, or the invoice balance.
+The product name in the app is **Ledger**. It is a server-first Next.js application: the browser displays the workspace, and the server decides who owns the data, what a plan allows, and what an invoice balance is.
 
-## What it does
+**Stack:** Next.js 16, React 19, TypeScript, Tailwind CSS 4, MongoDB, Better Auth, Stripe, Resend, OpenAI, Vitest, Vercel.
 
-Ledger gives one authenticated owner a workspace to run day-to-day billing:
+## Live demo
 
-- keep customers and products
-- turn orders into invoices
-- collect payments, including optional Stripe Checkout
-- share a tokenized invoice link or a customer portal
-- email invoices and send due reminders
-- read reports, deterministic business insights, and an optional read-only AI assistant
+This repository does not store a production URL. The deployed origin is set with `NEXT_PUBLIC_APP_URL` on the host.
 
-New workspaces get a first-run checklist. Existing workspaces with real records go straight to the dashboard.
+The login screen includes **Sign in as demo**. Those credentials are shown in the app on purpose:
 
-## Key capabilities
+- Email: `demo@businessdashboard.com`
+- Password: `Demo@123456`
 
-- Email/password authentication (Better Auth) and a public read-only demo
-- Organization, plan, and entitlement foundation (Free / Starter / Pro / Business)
-- Optional Stripe SaaS subscriptions, separate from customer invoice payments
-- Customers, products, orders, invoices, and manual payments
-- Invoice PDFs, Resend email, and scheduled payment reminders
-- Public invoice links and a separate customer invoice portal
-- Stripe Checkout for outstanding invoice balances, with signature-verified webhooks
-- Reports and dashboard analytics calculated on the server
-- Read-only AI assistant and proactive insights grounded in those analytics
-- Server-derived onboarding for empty workspaces
+The demo is a read-only workspace with seeded customers, products, orders, invoices, and payments. Visitors can look through the product. They cannot create or edit records, record payments, send email, start Stripe Checkout, change billing, or complete onboarding writes.
+
+## Project overview
+
+Small operators usually keep customers in one place, orders in another, and invoices in a spreadsheet. Ledger is one workspace for that day-to-day billing work.
+
+It is business software, not a generic CRUD sample. Orders become invoices. Payments change the outstanding balance. Customers can open a tokenized invoice or a customer portal without an account. Optional Stripe Checkout records money only after a verified webhook. A separate Stripe subscription flow can change the workspace plan. Reports, insights, and an optional AI assistant read the same server-calculated numbers.
+
+## Key features
+
+- Email and password authentication, with protected workspace routes
+- Public read-only demo account
+- Customers, products with stock, orders, invoices, and manual payments
+- Server-generated invoice numbers and server-calculated totals
+- Invoice PDFs
+- Invoice email through Resend
+- Scheduled and manual payment reminders
+- Public single-invoice links and a separate customer invoice portal
+- Stripe Checkout for an invoice’s outstanding balance
+- Organizations with Free, Starter, Pro, and Business plans and entitlements
+- Optional Stripe subscription billing, separate from customer invoice payments
+- Dashboard analytics and reports
+- Business profile and invoice branding in Settings
+- Read-only AI Business Assistant
+- Proactive business insights, with an optional AI executive summary
+- First-run onboarding for empty workspaces
+
+Email, Stripe, OpenAI, and the reminder cron are optional. If those credentials are missing, the rest of the app still runs and the affected feature shows a safe unavailable state.
+
+## Screenshots
+
+Screenshots can be added here to showcase the dashboard, invoices, reports, AI assistant, and customer portal.
 
 ## Architecture
 
 ```text
 Browser
-  → Next.js App Router (UI + route handlers)
-    → Server services (auth, billing, invoices, insights)
-      → MongoDB (native driver, owner-scoped documents)
+   ↓
+Next.js App Router
+   ↓
+Server services
+   ↓
+MongoDB
 
-Organization
-  → Stripe Customer (SaaS)
-    → Stripe Subscription
-      → Plan
-        → Entitlements
-
-Customer invoice
-  → Stripe Checkout (mode=payment)
-    → Signed webhook
-      → Payment record
-        → Invoice balance
+External integrations (optional):
+  Stripe          invoice Checkout and SaaS subscriptions
+  Resend          invoice and reminder email
+  OpenAI          assistant and insight summary
+  Public portals  tokenized invoice and customer links
 ```
 
-Optional edges stay optional: Resend for email, OpenAI for the assistant and insight summary, Stripe for both invoice Checkout and SaaS billing. Missing credentials degrade those features. They do not take the rest of the app down.
+The UI is server-first. Route handlers and server services talk to MongoDB with the native driver. The signed-in user is the owner. Business documents are queried with that session owner. Financial totals, tax, and outstanding balances are calculated on the server. The browser cannot choose `ownerId`, `organizationId`, `planId`, or a payment amount.
 
-## Engineering highlights
+A deeper request-flow write-up is in [docs/architecture.md](docs/architecture.md).
 
-- Server-first Next.js architecture with session-derived ownership
-- Tenant isolation: browser `ownerId` / `organizationId` / `planId` are ignored
-- Financial totals and outstanding balances calculated on the server
-- Stripe webhook signature checks, idempotency, and a short processing lease
-- Hashed public invoice and customer-portal tokens, with expiry and revocation
-- Demo account write protection across mutations, email, reminders, and billing
-- AI context is a sanitized analytics DTO, not raw database documents
-- Automated regression suite around auth, billing, portals, and tenancy
+## SaaS model
+
+```text
+User
+  ↓
+Organization
+  ↓
+Plan / Entitlements
+  ↓
+Stripe Customer
+  ↓
+Subscription
+```
+
+Each user gets one organization. Business records (customers, products, orders, invoices, payments) stay scoped by `ownerId`, which is the Better Auth user id. `organizations.ownerUserId` maps to that same id. There is no team membership model and no organization switcher.
+
+Plans are `free`, `starter`, `pro`, and `business`. The Free plan includes the core billing workspace. The AI assistant and the AI insight summary require a paid plan. Effective entitlements follow the subscription status: active, trialing, and past due keep the paid plan; a canceled subscription keeps it until the period ends; unpaid, incomplete, and paused fall back to Free. Unknown Stripe Price IDs never grant a paid plan.
+
+Team members, role-based access, and switching between organizations are intentionally out of scope.
+
+## Payments
+
+Customer invoice payments and SaaS subscriptions are separate Stripe workflows. They share a webhook endpoint and an idempotency record. They do not share payment documents.
+
+### Invoice payments
+
+```text
+Invoice
+  ↓
+Stripe Checkout
+  ↓
+Webhook
+  ↓
+Verified payment
+  ↓
+Invoice balance
+```
+
+Checkout uses Stripe `mode=payment` and a server-calculated outstanding amount in USD. The browser return URL (`?payment=success`) is only a message. A payment is recorded when `POST /api/webhooks/stripe` verifies the Stripe signature.
+
+### SaaS subscription billing
+
+```text
+Organization
+  ↓
+Stripe Customer
+  ↓
+Subscription
+  ↓
+Plan
+  ↓
+Entitlements
+```
+
+Settings can start subscription Checkout (`mode=subscription`) or the Stripe billing portal. Price IDs come from `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, and `STRIPE_PRICE_BUSINESS`. The browser cannot send a price, a customer id, or a return URL.
+
+Both flows verify webhook signatures against the raw body, store Stripe event ids so duplicates are ignored, and reclaim events stuck in processing after a two-minute lease. Invoice amounts and plan mapping stay on the server.
+
+This repository’s automated tests mock Stripe. A live Stripe account is not claimed here.
 
 ## Security
 
-- The signed-in user is the only owner the server will use
-- Public portal access uses bearer tokens stored as hashes
-- Invoice links and customer-portal links are separate capabilities
-- Private and tokenized responses use `Cache-Control: no-store`
-- Webhook bodies are verified before JSON business logic runs
-- Secrets stay in server environment variables, never `NEXT_PUBLIC_*`
+Practical controls, not a certification:
 
-## Demo
+- Session-derived ownership. APIs ignore a browser-supplied owner.
+- Owner-scoped queries, so one account cannot read another account’s records.
+- Demo mutations return a read-only error.
+- Invoice totals, payment amounts, and outstanding balances are calculated on the server.
+- Stripe webhooks require a valid signature. Event and payment ids are idempotent.
+- Public invoice and portal links store a hash of the bearer token, expire, and can be revoked.
+- Public responses omit owner ids, database ids, Stripe ids, and reminder internals.
+- Private and tokenized responses use `Cache-Control: no-store`.
+- Secrets stay in server environment variables.
+- The AI provider receives a compact analytics summary, not raw database documents.
 
-The login page includes **Sign in as demo**.
+Details are in [docs/security.md](docs/security.md).
 
-- Email: `demo@businessdashboard.com`
-- Password: `Demo@123456`
+## Engineering highlights
 
-The demo can browse seeded customers, products, orders, invoices, payments, reports, and insights. It cannot create, edit, pay, email, remind, open billing checkout, or complete onboarding writes.
+- Server-first Next.js architecture
+- Organization, plan, and entitlement foundation
+- Server-side tenant isolation on the existing owner boundary
+- Financial integrity controls, including atomic outstanding-balance reservation
+- Stripe Checkout for invoices
+- Stripe webhook signature checks and idempotency
+- Separate SaaS subscription billing
+- Tokenized public invoice and customer portals
+- PDF invoices
+- Email delivery
+- Scheduled payment reminders
+- Regression tests around auth, billing, portals, and tenancy
+- Production security headers, health check, and no-store caching
+- Read-only AI assistant with sanitized business context
+- Proactive business insights
+- First-run onboarding that does not trap existing workspaces
 
-Local seed (localhost Mongo only):
+## Project status
+
+This is a portfolio-grade, production-oriented SaaS implementation. It is suitable to deploy, demo, and review as an example of how the product is built.
+
+It is not described here as a business with paying customers, and it does not claim an enterprise security certification. Automated tests cover Stripe and OpenAI with mocks. Live Stripe and live OpenAI calls are not claimed by this repository.
+
+## Technology stack
+
+### Frontend
+
+- Next.js 16 App Router
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Recharts
+
+### Backend
+
+- Next.js route handlers and server services
+- MongoDB native driver
+- MongoDB Atlas in production (local MongoDB is fine for development)
+
+### Authentication
+
+- Better Auth
+
+### Payments
+
+- Stripe Checkout and Stripe Billing
+
+### Email
+
+- Resend
+
+### Documents
+
+- PDFKit
+
+### AI
+
+- OpenAI, called only from the server. The default model is `gpt-4o-mini` unless `OPENAI_MODEL` is set.
+
+### Testing
+
+- Vitest
+- mongodb-memory-server
+
+### Deployment
+
+- Vercel, including a daily cron for invoice reminders
+
+## Testing
+
+The suite is 188 tests in 26 files. Tests use an in-memory MongoDB and do not call live Stripe, Resend, or OpenAI.
 
 ```bash
-npm run provision:demo
-```
-
-Production uses the same login button, which provisions the demo idempotently against the configured database.
-
-## Development
-
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
 npm test
 npm run lint
 npx tsc --noEmit
 npm run build
 ```
 
-The automated suite uses Vitest and an in-memory MongoDB. It does not call live Stripe, Resend, or OpenAI.
+Also available: `npm run test:watch` and `npm run test:coverage`. This README does not publish a coverage percentage.
 
-## Stack
+## Environment variables
 
-- Next.js 16 App Router, React 19, TypeScript
-- Tailwind CSS 4
-- MongoDB native driver
-- Better Auth
-- Stripe (invoice Checkout and SaaS subscriptions)
-- Resend, PDFKit, OpenAI (all optional)
-- Vitest
+Copy `.env.example` to `.env.local`. Never commit real values. Never put secrets in `NEXT_PUBLIC_*` variables.
 
----
+**Required in production**
 
-# Operations
+| Variable | Purpose |
+| --- | --- |
+| `MONGODB_URI` | MongoDB connection string |
+| `MONGODB_DB` | Database name |
+| `BETTER_AUTH_SECRET` | Session signing and public-token HMAC |
+| `BETTER_AUTH_URL` | Auth base URL |
+| `NEXT_PUBLIC_APP_URL` | Public app origin (not a secret) |
 
-The sections below are the implementation notes for setup, billing, and security. They describe what the code actually does.
+**Optional.** The app runs without them. The related feature reports that it is not configured.
 
-## SaaS Architecture
+| Variable | Purpose |
+| --- | --- |
+| `RESEND_API_KEY` | Invoice and reminder email |
+| `EMAIL_FROM` | Verified sender address |
+| `EMAIL_FROM_NAME` | Sender name (defaults to Ledger) |
+| `CRON_SECRET` | Authorizes `/api/cron/invoice-reminders` |
+| `STRIPE_SECRET_KEY` | Invoice Checkout and SaaS billing |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signature verification |
+| `STRIPE_PRICE_STARTER` | Starter plan Price ID |
+| `STRIPE_PRICE_PRO` | Pro plan Price ID |
+| `STRIPE_PRICE_BUSINESS` | Business plan Price ID |
+| `OPENAI_API_KEY` | Assistant and insight summary |
+| `OPENAI_MODEL` | Optional model override |
 
-```text
-User (Better Auth)
-  → Organization (workspace; ownerUserId)
-    → SaaS Subscription (optional)
-      → Stripe Customer + Stripe Subscription
-        → Plan (free | starter | pro | business)
-          → Entitlements (features + limits)
-            → Existing owner-scoped business data
-```
+`ALLOW_PRODUCTION_DEMO_PROVISION=1` is a one-off switch for `npm run provision:demo:production`. It is not required to run the app. Public link lifetime is a 30-day server constant, not an environment variable.
 
-**Compatibility with `ownerId`:**
-
-- Business documents remain scoped by `ownerId` = Better Auth user id.
-- `organizations.ownerUserId` maps 1:1 to that same id.
-- No destructive migration of business collections.
-
-### Two separate Stripe flows
-
-| Flow | Path | Stripe mode | Purpose |
-| --- | --- | --- | --- |
-| Customer invoice payments | Invoice / portal → Checkout | `payment` | Collect money on a business invoice |
-| SaaS subscriptions | Settings → Billing | `subscription` | Unlock application plan entitlements |
-
-Do not mix `invoiceId` with `subscriptionId`. Invoice payment records never represent SaaS subscriptions.
-
-### SaaS Billing
-
-- Free plan works without Stripe credentials.
-- Paid plans map to server env Price IDs only (`STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS`).
-- Browser cannot supply `priceId`, `stripeCustomerId`, `organizationId`, or redirect URLs.
-- `POST /api/billing/checkout` starts subscription Checkout.
-- `POST /api/billing/portal` opens Stripe Billing Customer Portal.
-- Webhooks (`/api/webhooks/stripe`) verify signatures, reuse idempotency leases, and sync subscription → organization plan.
-- Unknown Stripe Price IDs never grant paid entitlements.
-- Entitlement policy: `active` / `trialing` / `past_due` keep paid plan; `canceled` keeps access until `currentPeriodEnd`; `unpaid` / `incomplete*` / `paused` fall back to Free.
-- Demo accounts can view billing status but cannot checkout or open the portal.
-
-### Stripe webhook setup (test mode)
-
-1. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the three `STRIPE_PRICE_*` values.
-2. Create Products/Prices in Stripe Dashboard (or CLI) and paste Price IDs into env.
-3. Forward events:
-
-```bash
-stripe listen --forward-to localhost:3000/api/webhooks/stripe
-```
-
-Subscribe at least to: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`.
-
-### Onboarding
-
-New workspaces without customers, products, orders, or invoices are sent to `/onboarding` after signup or login. Checklist completion is derived on the server from the business profile and existing records. Workspaces that already have business data go straight to the dashboard and are not asked to recreate anything. The demo account stays read-only and cannot persist onboarding completion.
-
-## Getting started
+## Local development
 
 ```bash
 npm install
 cp .env.example .env.local
-# set BETTER_AUTH_SECRET, BETTER_AUTH_URL, NEXT_PUBLIC_APP_URL, MONGODB_URI, MONGODB_DB
-# optional for invoice email: RESEND_API_KEY, EMAIL_FROM, EMAIL_FROM_NAME
-# optional for online invoice payments: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 npm run dev
 ```
 
-### Demo account
+On Windows PowerShell, copy the env file with `copy .env.example .env.local`.
 
-The login page exposes a public read-only demo account (`demo@businessdashboard.com`).
+Set the required variables before expecting auth and MongoDB to work. Optional integrations can stay empty.
 
-- **Local seed** (localhost Mongo only):
+Seed the local demo account only against a localhost MongoDB:
 
 ```bash
 npm run provision:demo
 ```
 
-- **Production**: the “Sign in as demo” button also runs an idempotent server-side provision against the app’s configured MongoDB, then signs in and lands on `/`. Optional offline provision against Atlas:
+The production login button provisions the same demo account idempotently. An offline production seed is:
 
 ```bash
-# requires MONGODB_URI for the target database
 ALLOW_PRODUCTION_DEMO_PROVISION=1 npm run provision:demo:production
 ```
 
-Demo users can view customers, products, orders, invoices, payments, and dashboard metrics. All mutations remain blocked by `assertDemoWriteAllowed`. Demo invoices cannot create Stripe Checkout sessions.
+Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm test`.
 
-### Auth landing
+`GET /api/health` is an unauthenticated readiness check. It returns MongoDB status and whether optional integrations are configured. It does not return secrets.
 
-Empty workspaces go to `/onboarding` after signup or login. Workspaces that already have customers, products, orders, or invoices, and the demo account, land on `/`. `/dashboard` is a legacy route and redirects authenticated users to `/`.
+## Demo account
 
-## Core workflow
+Sign in from the login page, or use the credentials in [Live demo](#live-demo).
 
-```text
-Customer → Order → Invoice → Payment
-```
+Visitors can open the dashboard, customers, products, orders, invoices, payments, reports, notifications, settings, and deterministic insights. Invoice PDFs can be downloaded. The seeded organization is on the Free plan, so the AI assistant and AI insight summary stay on their upgrade-required state.
 
-### Orders
+Writes are rejected. That includes creating or editing records, manual payments, voiding payments, public links, invoice email, reminders, Stripe Checkout, SaaS checkout, the billing portal, and saving onboarding or settings.
 
-Orders represent what a customer purchased. Totals are calculated server-side.
+## Future scope
 
-### Invoices
+These are intentionally outside the current product, not missing pieces of the billing workspace:
 
-- Created from an owned order via `POST /api/invoices` with `{ orderId, tax?, dueDate?, notes?, issue? }`
-- One active invoice per order (cancelled invoices do not block a new one)
-- Invoice numbers are generated server-side as `INV-YYYY-000001` using an atomic per-owner counter
-- Totals (`subtotal`, `discount`, `tax`, `total`) are computed on the server from order data
-- Statuses: `draft`, `issued`, `partially_paid`, `paid`, `overdue`, `cancelled`
-- Issued invoices with payments cannot be cancelled; cancel is preferred over hard delete
-- Download a professional PDF via `GET /api/invoices/:id/pdf` (owner-scoped, read-only; demo users may download)
-- Email the same PDF via `POST /api/invoices/:id/email` to the owned customer's server-side email (demo cannot send)
-- Share a secure single-invoice link via `/invoice/<token>` (token hash stored server-side)
-- Share a separate customer portal link via `/portal/<token>` for that customer's invoice history (does not broaden invoice-only links)
-
-### Invoice email (Resend)
-
-1. Create a [Resend](https://resend.com) account and API key
-2. Verify a sending domain (or use Resend's onboarding sender for development)
-3. Set in Vercel / `.env.local`:
-
-```bash
-RESEND_API_KEY=re_...
-EMAIL_FROM=invoices@your-verified-domain.com
-EMAIL_FROM_NAME=Ledger
-```
-
-The app builds without these variables. Sending fails at runtime with a clear configuration error until they are set. Demo accounts cannot send email.
-
-### Payments
-
-- Created via `POST /api/payments` against an owned invoice
-- Amount must be positive and cannot exceed outstanding balance
-- Concurrent overpayment is guarded with an atomic outstanding-balance reservation
-- Payments are not hard-deleted; use void (`DELETE /api/payments/:id`) to reverse them and recalculate invoice status
-- Demo users can view invoices/payments but cannot mutate them
-
-### Customer portal (token-based)
-
-Phase 14 adds a **separate** customer portal access model from the single-invoice link:
-
-| Link type | URL | Scope |
-|---|---|---|
-| Invoice access | `/invoice/<token>` | One invoice only |
-| Customer portal | `/portal/<token>` | All invoices for `ownerId + customerId` |
-
-Invoice-only tokens **do not** unlock the portal. Portal tokens are created from invoice detail → **Customer portal → Create Portal Link**.
-
-Security notes:
-
-- Bearer tokens are hashed at rest (same cryptographic approach as invoice access)
-- Boundary is `ownerId + customerId` (not email alone)
-- TTL matches invoice access (30 days)
-- Revocation immediately invalidates list/detail/PDF/checkout for that portal
-- No customer accounts, passwords, or Better Auth customer users in this phase
-- Public responses never include `ownerId`, Mongo IDs, or payment/reminder internals
-
-Portal invoice detail: `/portal/<token>/invoice/<invoiceNumber>`  
-Portal PDF/checkout APIs validate the invoice belongs to the portal customer context before acting.
-
-### Stripe Checkout (optional)
-
-Online invoice payments use **Stripe Checkout** + a **verified webhook**.
-
-```text
-Public invoice token
-  → POST /api/public/invoices/[token]/checkout
-  → Stripe Checkout Session (server-calculated outstanding amount, USD)
-  → Customer pays on Stripe
-  → POST /api/webhooks/stripe (signature-verified)
-  → Existing payment recording engine
-  → Invoice outstanding/status update
-```
-
-**Security rule:** the browser success redirect (`?payment=success`) is UX only. It never records a payment. Only a signature-verified Stripe webhook can create an online payment.
-
-#### Setup (test mode)
-
-1. Create a Stripe account and open [test API keys](https://dashboard.stripe.com/test/apikeys)
-2. Set server-only env vars (never `NEXT_PUBLIC_*`):
-
-```bash
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-```
-
-3. Local webhook forwarding:
-
-```bash
-stripe listen --forward-to localhost:3000/api/webhooks/stripe
-```
-
-Use the webhook signing secret printed by `stripe listen` as `STRIPE_WEBHOOK_SECRET`.
-
-4. Production: add an endpoint in the Stripe Dashboard pointing to:
-
-```text
-https://your-domain.com/api/webhooks/stripe
-```
-
-Subscribe at least to `checkout.session.completed`.
-
-#### Behavior notes
-
-- Currency is USD for this phase (multi-currency deferred)
-- Only card Checkout is enabled (immediate confirmation). Async methods are not enabled
-- Checkout amount always equals the invoice’s current outstanding balance (server-side)
-- Duplicate Stripe events / PaymentIntents are idempotent (`stripe-events.eventId` unique + `payments.provider+providerPaymentId` unique)
-- If Stripe env vars are missing, the app still builds/runs; checkout returns a safe `503`
-- Demo-owned invoices cannot start Checkout
-
-### Dashboard metrics
-
-- **Order revenue**: sum of non-cancelled order totals (existing Phase 3 meaning)
-- **Collected payments**: sum of `paidAmount` on non-cancelled invoices
-- **Outstanding receivables**: sum of invoice outstanding balances
-- **Overdue invoices**: invoices past due with remaining balance
-
-## Scripts
-
-```bash
-npm run dev
-npm run build
-npm run lint
-npm test
-npm run test:watch
-npm run test:coverage
-npm run provision:demo
-npm run provision:demo:production
-```
-
-### AI Business Assistant (read-only)
-
-Authenticated owners can ask natural-language questions at `/assistant` (also in the sidebar as **AI Assistant**).
-
-```text
-POST /api/assistant { question }
-  → session.user.id
-  → owner-scoped dashboard/reports analytics (sanitized DTO)
-  → OpenAI (server-only)
-  → schema-validated answer
-```
-
-Setup:
-
-```bash
-OPENAI_API_KEY=sk-...
-# optional
-OPENAI_MODEL=gpt-4o-mini
-```
-
-Security model:
-
-- Server-only provider; never use `NEXT_PUBLIC_*` for AI secrets
-- Owner identity comes only from the session (browser `ownerId` ignored)
-- Model receives compact sanitized analytics — not raw Mongo documents
-- Read-only: no create/update/void/email/reminder/Stripe actions
-- Demo users may ask questions about demo data only
-- Private responses use `Cache-Control: no-store`
-- Without `OPENAI_API_KEY`, the app still runs and the UI shows “not configured”
-- Period windows reuse Reports UTC date-range logic (`last_7_days`, `last_30_days`, calendar this/last month, etc.)
-- Answers must distinguish facts vs interpretations vs recommendations
-- Provider timeout ~25s, `max_tokens` capped, one provider call per request
-- Persistent per-user rate limiting remains deferred
-
-Supported question themes: business summary, revenue/period comparison, top products/customers, outstanding/overdue invoices, follow-ups, inventory signals, attention/risk prompts.
-
-Automated tests mock the AI provider and never call OpenAI. Live OpenAI smoke verification requires a real `OPENAI_API_KEY` and is not claimed unless that key is present.
-
-### Business Insights (proactive, read-only)
-
-The Dashboard shows **Business Insights** derived from the same owner-scoped analytics used by the assistant.
-
-```text
-GET  /api/insights
-  → session.user.id
-  → authoritative analytics context
-  → deterministic insight cards (no OpenAI)
-
-POST /api/insights
-  → session.user.id
-  → recompute deterministic insights
-  → optional one-shot AI executive summary (OpenAI only if configured)
-```
-
-Deterministic rules (UTC last-30-days window unless noted):
-
-| Signal | Threshold |
-| --- | --- |
-| Revenue decline / growth | ≥ 10% change vs previous comparable period; requires ≥ 3 orders in period |
-| Overdue receivables | Any overdue invoice with outstanding balance |
-| Due soon | Unpaid invoices due within reminder window (`DUE_SOON_WINDOW_DAYS`, currently 3) |
-| Low stock | Existing product low/out-of-stock inventory rules |
-| Pending orders | ≥ 3 pending orders (medium at ≥ 8) |
-| Cancellation signal | ≥ 15% cancelled when ≥ 5 orders |
-| Payment collection | Outstanding ≥ 25% of total invoiced, with overdue or weak collections |
-
-At most 5 insights are shown, sorted by severity (`high` → `medium` → `info`). Weak/noisy signals are suppressed rather than shown as confident trends.
-
-AI executive summary:
-
-- Optional button on the Dashboard (not auto-called on every page load)
-- One provider call maximum; summarizes already-computed insight DTOs only
-- If `OPENAI_API_KEY` is missing, insight cards still work; summary stays unavailable
-- AI never mutates business data and never invents authoritative financial totals
-
-Demo accounts may view insights/summaries for demo data only (no mutations, emails, payments, or settings changes).
-
-### Production environment variables (Vercel)
-
-Values are never committed. See `.env.example`.
-
-**Required (app cannot run safely in production without these):**
-
-- `BETTER_AUTH_SECRET`
-- `BETTER_AUTH_URL` (production site origin)
-- `NEXT_PUBLIC_APP_URL` (same production origin; no secrets)
-- `MONGODB_URI`
-- `MONGODB_DB`
-
-**Optional (features degrade gracefully when unset):**
-
-- `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME` — invoice/reminder email
-- `CRON_SECRET` — authorizes `GET/POST /api/cron/invoice-reminders` (see `vercel.json` daily 09:00 UTC schedule)
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` — invoice Checkout + SaaS billing webhook
-- `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS` — SaaS subscription Price IDs
-- `OPENAI_API_KEY`, `OPENAI_MODEL` — AI assistant + optional insight executive summary
-
-Public invoice/portal link TTL is a server constant (30 days), not an environment variable.
-
-### Health check
-
-```text
-GET /api/health
-```
-
-Unauthenticated deployment probe. Returns `{ status, checks }` with MongoDB ping + optional integration configuration flags (`configured` / `not_configured`). Never returns secrets, connection strings, owner IDs, or stack traces. Uses `Cache-Control: no-store`. HTTP `200` when ready, `503` when degraded.
-
-### Deployment notes
-
-1. Set required env vars in the host (Vercel recommended).
-2. Deploy; confirm `GET /api/health` returns `status: "ok"`.
-3. Optional: configure Resend, Stripe webhook (`/api/webhooks/stripe`), OpenAI, and `CRON_SECRET` for Vercel Cron.
-4. Provision the demo account only when you intentionally want the public demo login.
-
-## Security notes
-
-- Owner scope always comes from the authenticated session
-- Browser-supplied `ownerId` / `userId` are never trusted for authorization
-- Public invoice / customer portal access uses hashed bearer tokens (not Mongo IDs)
-- Invoice-only tokens and customer portal tokens are separate capabilities
-- Public token URLs use `Referrer-Policy: no-referrer` and `Cache-Control: no-store`
-- Stripe Checkout Sessions are expired when a new session is created for the same invoice
-- Stripe-recorded payments cannot be voided in-app (use Stripe refunds)
-- Stripe webhook events stuck in `processing` are reclaimed after a short lease
-- Demo owners are skipped by the reminder cron (no automated emails / link creation)
-- `MONGODB_URI` and `BETTER_AUTH_SECRET` are required in production
-- Stripe / Resend / cron secrets must never use `NEXT_PUBLIC_*` names
-- See `.env.example` for the full variable list (values never committed)
-- `.env.local`, `.vercel/`, and cookie jars are gitignored
-- Demo provisioning never deletes normal users or non-demo business data
-
-## Intentionally deferred
-
-- Pricing page, trials, coupons, VAT for SaaS invoices
-- In-app plan proration UI beyond Stripe Customer Portal
-- Team invitations, members, organization switching, RBAC
-- Migrating business documents from `ownerId` to `organizationId`
-- AI mutation tools / autonomous agents / autonomous insight actions
-- Persistent AI chat history / vector RAG
-- Configurable insight thresholds UI
-- Persistent per-user AI rate limiting / usage metering
-- PayPal / Paddle / Stripe Connect
+- Team members, roles, and organization switching
+- Additional payment providers
 - Multi-currency
-- Tax engine
-- Refunds / disputes UI
-- Customer accounts / portal dashboard
-- Full double-entry accounting
+- A tax engine and double-entry accounting
+- Deeper automation, including AI actions and retrieval over raw documents
+
+## Further reading
+
+- [Architecture](docs/architecture.md)
+- [Security model](docs/security.md)
+- [Environment template](.env.example)
