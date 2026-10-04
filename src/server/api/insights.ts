@@ -4,6 +4,7 @@ import { isAiConfigured } from "@/server/ai/config";
 import { summarizeBusinessInsights } from "@/server/ai/insight-summary";
 import { getBusinessInsights } from "@/server/ai/insights";
 import { AiProviderError } from "@/server/ai/provider";
+import { EntitlementError } from "@/server/entitlements/errors";
 
 const NO_STORE = { "Cache-Control": "no-store" } as const;
 
@@ -51,6 +52,10 @@ export async function POST(request: Request) {
     if (body && typeof body === "object") {
       void (body as Record<string, unknown>).ownerId;
       void (body as Record<string, unknown>).userId;
+      void (body as Record<string, unknown>).organizationId;
+      void (body as Record<string, unknown>).planId;
+      void (body as Record<string, unknown>).limits;
+      void (body as Record<string, unknown>).status;
       void (body as Record<string, unknown>).insights;
       void (body as Record<string, unknown>).prompt;
     }
@@ -72,6 +77,12 @@ export async function POST(request: Request) {
       { headers: NO_STORE },
     );
   } catch (error) {
+    if (error instanceof EntitlementError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code, ...error.details },
+        { status: error.status, headers: NO_STORE },
+      );
+    }
     if (error instanceof AiProviderError) {
       return errorResponse(error.message, error.status);
     }

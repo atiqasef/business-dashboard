@@ -39,9 +39,13 @@ export async function POST(request: Request) {
   }
 
   const record = body as Record<string, unknown>;
-  // Explicitly ignore any client-supplied identity fields.
+  // Explicitly ignore any client-supplied identity / plan fields.
   void record.ownerId;
   void record.userId;
+  void record.organizationId;
+  void record.planId;
+  void record.limits;
+  void record.status;
 
   try {
     const result = await askBusinessAssistant({

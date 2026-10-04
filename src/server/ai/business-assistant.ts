@@ -8,6 +8,9 @@ import {
   normalizeAssistantResponse,
   type AssistantResponse,
 } from "@/server/ai/schemas";
+import { EntitlementError } from "@/server/entitlements/errors";
+import { assertFeature } from "@/server/entitlements/service";
+import { resolveOrganizationForUser } from "@/server/organizations/resolve";
 
 export class AssistantValidationError extends Error {
   status: number;
@@ -67,6 +70,16 @@ export async function askBusinessAssistant(options: {
 
   if (!provider.isConfigured()) {
     throw new AssistantServiceError("AI assistant is not configured.", 503);
+  }
+
+  try {
+    const org = await resolveOrganizationForUser(options.ownerId);
+    assertFeature(org.organization, "aiAssistant");
+  } catch (error) {
+    if (error instanceof EntitlementError) {
+      throw new AssistantServiceError(error.message, error.status);
+    }
+    throw error;
   }
 
   const built = await buildAssistantBusinessContext(options.ownerId, question);

@@ -11,6 +11,43 @@ A server-first Next.js business workspace for customers, products, orders, invoi
 - Stripe Checkout (optional, server-side)
 - Vitest + mongodb-memory-server
 
+## SaaS Architecture
+
+Phase 20 introduces a **plan/entitlement foundation** without subscription charging.
+
+```text
+User (Better Auth)
+  → Organization (workspace; ownerUserId)
+    → Plan (free | starter | pro | business)
+      → Entitlements (features + limits)
+        → Existing owner-scoped business data
+```
+
+**Compatibility with `ownerId`:**
+
+- Today every business document (`customers`, `products`, `orders`, `invoices`, `payments`, …) is scoped by `ownerId` = Better Auth user id.
+- `organizations.ownerUserId` maps 1:1 to that same id.
+- No destructive rename/migration of business collections in this phase.
+- Future phases may add `organizationId` on business docs plus team members/roles.
+
+**What exists now:**
+
+- Idempotent organization provisioning (unique `ownerUserId` + `slug`)
+- Central plan definitions in `src/server/entitlements/plans.ts`
+- Server entitlement helpers (`hasFeature`, `assertFeature`, `assertWithinLimit`)
+- Settings “Current plan” visibility + `GET /api/organization`
+- Soft AI feature checks that resolve the org server-side (Free currently keeps AI enabled so production behavior is not suddenly restricted)
+
+**Not implemented yet:**
+
+- Stripe subscription Checkout / Billing webhooks
+- Pricing page, trials, coupons, plan upgrade charging
+- Team invitations, members, RBAC
+- Usage metering for monthly AI queries
+- Organization switching
+
+Invoice Stripe Checkout remains **customer invoice payment** infrastructure — it is not SaaS subscription billing.
+
 ## Getting started
 
 ```bash
@@ -316,12 +353,15 @@ Unauthenticated deployment probe. Returns `{ status, checks }` with MongoDB ping
 
 ## Intentionally deferred
 
+- Stripe subscription billing / SaaS Checkout / plan upgrade charging
+- Pricing page, trials, coupons, VAT for SaaS invoices
+- Team invitations, members, organization switching, RBAC
+- Migrating business documents from `ownerId` to `organizationId`
 - AI mutation tools / autonomous agents / autonomous insight actions
 - Persistent AI chat history / vector RAG
 - Configurable insight thresholds UI
-- Persistent per-user AI rate limiting service
+- Persistent per-user AI rate limiting / usage metering
 - PayPal / Paddle / Stripe Connect
-- Subscriptions / recurring billing
 - Multi-currency
 - Tax engine
 - Refunds / disputes UI

@@ -3,6 +3,9 @@ import { AiProviderError, type AiProvider } from "@/server/ai/provider";
 import { getBusinessInsights } from "@/server/ai/insights";
 import type { BusinessInsight } from "@/server/ai/insight-types";
 import { normalizeAssistantResponse } from "@/server/ai/schemas";
+import { EntitlementError } from "@/server/entitlements/errors";
+import { assertFeature } from "@/server/entitlements/service";
+import { resolveOrganizationForUser } from "@/server/organizations/resolve";
 
 const INSIGHT_SUMMARY_SYSTEM_PROMPT = `You write a short executive summary of pre-computed business insights for a ledger dashboard.
 
@@ -64,6 +67,16 @@ export async function summarizeBusinessInsights(options: {
 
   if (!provider.isConfigured()) {
     return { ...base, summary: null, aiAvailable: false };
+  }
+
+  try {
+    const org = await resolveOrganizationForUser(options.ownerId);
+    assertFeature(org.organization, "aiInsightSummary");
+  } catch (error) {
+    if (error instanceof EntitlementError) {
+      throw error;
+    }
+    throw new AiProviderError("Unable to verify plan entitlements.", 500);
   }
 
   try {

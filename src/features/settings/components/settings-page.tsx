@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeading } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PlanStatusCard, type PlanStatusView } from "@/features/settings/components/plan-status-card";
 import type { BusinessProfileResponse } from "@/server/db/models/business-profile";
 
 type FormState = {
@@ -107,9 +108,11 @@ function Field({
 export function SettingsPage({
   readOnlyDemo,
   initialProfile,
+  planStatus,
 }: {
   readOnlyDemo: boolean;
   initialProfile: BusinessProfileResponse | null;
+  planStatus: PlanStatusView | null;
 }) {
   const [form, setForm] = useState<FormState>(() => profileToForm(initialProfile));
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -207,6 +210,12 @@ export function SettingsPage({
         </div>
         {readOnlyDemo ? <Badge tone="accent">Read-only demo</Badge> : null}
       </div>
+
+      {planStatus ? (
+        <div className="mb-5">
+          <PlanStatusCard planStatus={planStatus} />
+        </div>
+      ) : null}
 
       {loadError ? (
         <Card>
