@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Banknote,
+  BellRing,
   Download,
   Loader2,
   Mail,
@@ -146,6 +147,16 @@ function canRecordPayment(invoice: InvoiceDetail) {
   return invoice.status !== "cancelled" && invoice.outstandingAmount > 0;
 }
 
+function canSendReminder(invoice: InvoiceDetail) {
+  return (
+    invoice.status !== "cancelled" &&
+    invoice.status !== "draft" &&
+    invoice.status !== "paid" &&
+    invoice.outstandingAmount > 0 &&
+    Boolean(invoice.customerSnapshot.email?.trim())
+  );
+}
+
 export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: string; readOnlyDemo: boolean }) {
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,6 +166,7 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
   const [cancelling, setCancelling] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [emailingInvoice, setEmailingInvoice] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
   const [voidingPaymentId, setVoidingPaymentId] = useState<string | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm(0));
@@ -322,6 +334,34 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
     }
   }
 
+  async function sendPaymentReminder() {
+    if (!invoice || sendingReminder || readOnlyDemo) return;
+    const recipient = invoice.customerSnapshot.email?.trim();
+    if (!recipient) {
+      setError("Add a customer email address before sending a payment reminder.");
+      return;
+    }
+    if (!window.confirm(`Send a payment reminder for ${invoice.invoiceNumber} to ${recipient}?`)) return;
+
+    setSendingReminder(true);
+    setError("");
+    setFeedback("");
+
+    try {
+      const response = await fetch(`/api/invoices/${invoice.id}/reminder`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; data?: { to?: string } } | null;
+      if (!response.ok) throw new Error(payload?.error || "Unable to send payment reminder.");
+      setFeedback(`Payment reminder sent to ${payload?.data?.to || recipient}.`);
+    } catch (reminderError) {
+      setError(reminderError instanceof Error ? reminderError.message : "Unable to send payment reminder.");
+    } finally {
+      setSendingReminder(false);
+    }
+  }
+
   async function cancelInvoice() {
     if (!invoice) return;
     if (!window.confirm(`Cancel invoice ${invoice.invoiceNumber}? This cannot be undone.`)) return;
@@ -421,6 +461,28 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
               {emailingInvoice ? "Sending..." : "Email Invoice"}
             </Button>
           ) : null}
+          {invoice && canSendReminder(invoice) ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-9"
+              onClick={() => void sendPaymentReminder()}
+              disabled={sendingReminder || readOnlyDemo}
+              title={
+                readOnlyDemo
+                  ? "Reminder sending is disabled for the demo account."
+                  : "Send payment reminder email with invoice PDF"
+              }
+            >
+              {sendingReminder ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <BellRing className="size-4" aria-hidden="true" />}
+              {sendingReminder ? "Sending..." : "Send Reminder"}
+            </Button>
+          ) : null}
+          <Link href="/notifications" className="print:hidden">
+            <Button type="button" variant="ghost" className="h-9">
+              Notifications
+            </Button>
+          </Link>
           {!readOnlyDemo && invoice && canRecordPayment(invoice) ? (
             <Button type="button" variant="primary" className="h-9" onClick={openPaymentModal}>
               <Banknote className="size-4" aria-hidden="true" /> Record payment

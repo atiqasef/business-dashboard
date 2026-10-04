@@ -40,6 +40,7 @@ const navIcons: Record<string, LucideIcon> = {
   Invoices: FileText,
   Payments: Banknote,
   Reports: ChartColumn,
+  Notifications: Bell,
   Settings: SettingsIcon,
 };
 

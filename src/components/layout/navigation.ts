@@ -11,6 +11,7 @@ export const WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   { label: "Invoices", href: "/invoices" },
   { label: "Payments", href: "/payments" },
   { label: "Reports", href: "/reports" },
+  { label: "Notifications", href: "/notifications" },
   { label: "Settings", href: "/settings" },
 ];
 
