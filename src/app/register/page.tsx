@@ -9,6 +9,15 @@ import { Input } from "@/components/ui/input";
 import { AuthShell } from "@/features/auth/components/auth-shell";
 import { authClient } from "@/lib/auth-client";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error && "message" in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return fallback;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -53,8 +62,8 @@ export default function RegisterPage() {
 
       router.push("/dashboard");
       router.refresh();
-    } catch (err: any) {
-      setError(err?.message || "Unable to create your account. Please try again.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Unable to create your account. Please try again."));
     } finally {
       setLoading(false);
     }

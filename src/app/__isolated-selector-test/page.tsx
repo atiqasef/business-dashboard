@@ -2,48 +2,66 @@
 
 import { useEffect, useState } from "react";
 
+type AsyncFetchState = {
+  timerFired: boolean;
+  fetchStarted: boolean;
+  fetchStatus: string;
+  fetchBody: string;
+};
+
+const idleFetchState: AsyncFetchState = {
+  timerFired: false,
+  fetchStarted: false,
+  fetchStatus: "not started",
+  fetchBody: "none",
+};
+
 export default function IsolatedSelectorTestPage() {
   const [value, setValue] = useState("");
-  const [effectRan, setEffectRan] = useState(false);
-  const [timerFired, setTimerFired] = useState(false);
-  const [fetchStarted, setFetchStarted] = useState(false);
-  const [fetchStatus, setFetchStatus] = useState("not started");
-  const [fetchBody, setFetchBody] = useState<string>("none");
+  const [asyncFetch, setAsyncFetch] = useState<AsyncFetchState>(idleFetchState);
 
   const [directValue, setDirectValue] = useState("");
   const [directFetchStarted, setDirectFetchStarted] = useState(false);
   const [directFetchStatus, setDirectFetchStatus] = useState("not started");
   const [directFetchBody, setDirectFetchBody] = useState<string>("none");
 
-  useEffect(() => {
-    setEffectRan(true);
+  const trimmedValue = value.trim();
+  const displayedFetch = trimmedValue ? asyncFetch : idleFetchState;
 
-    if (!value.trim()) {
-      setTimerFired(false);
-      setFetchStarted(false);
-      setFetchStatus("not started");
-      setFetchBody("none");
-      return;
-    }
+  useEffect(() => {
+    if (!trimmedValue) return;
 
     const timeout = window.setTimeout(() => {
-      setTimerFired(true);
-      setFetchStarted(true);
-      const url = `/api/customers?search=${encodeURIComponent(value.trim())}&page=1&pageSize=1`;
+      setAsyncFetch({
+        timerFired: true,
+        fetchStarted: true,
+        fetchStatus: "loading",
+        fetchBody: "pending",
+      });
+
+      const url = `/api/customers?search=${encodeURIComponent(trimmedValue)}&page=1&pageSize=1`;
       fetch(url, { credentials: "include" })
         .then(async (response) => {
-          setFetchStatus(`${response.status} ${response.ok ? "OK" : "ERROR"}`);
           const payload = await response.json().catch(() => ({}));
-          setFetchBody(JSON.stringify(payload?.data?.slice?.(0, 1) ?? payload ?? null));
+          setAsyncFetch({
+            timerFired: true,
+            fetchStarted: true,
+            fetchStatus: `${response.status} ${response.ok ? "OK" : "ERROR"}`,
+            fetchBody: JSON.stringify(payload?.data?.slice?.(0, 1) ?? payload ?? null),
+          });
         })
         .catch((error) => {
-          setFetchStatus(`error: ${error instanceof Error ? error.message : String(error)}`);
-          setFetchBody("fetch threw");
+          setAsyncFetch({
+            timerFired: true,
+            fetchStarted: true,
+            fetchStatus: `error: ${error instanceof Error ? error.message : String(error)}`,
+            fetchBody: "fetch threw",
+          });
         });
     }, 250);
 
     return () => window.clearTimeout(timeout);
-  }, [value]);
+  }, [trimmedValue]);
 
   return (
     <main style={{ padding: 24, fontFamily: "sans-serif" }}>
@@ -57,17 +75,17 @@ export default function IsolatedSelectorTestPage() {
           onChange={(event) => {
             const next = event.target.value;
             setValue(next);
+            setAsyncFetch(idleFetchState);
           }}
           placeholder="Type Alpha"
           style={{ width: 260, padding: 8 }}
         />
         <div style={{ marginTop: 12 }}>
           <div>Input state: {value}</div>
-          <div>Effect ran: {String(effectRan)}</div>
-          <div>Timer fired: {String(timerFired)}</div>
-          <div>Fetch started: {String(fetchStarted)}</div>
-          <div>Fetch status: {fetchStatus}</div>
-          <div>Fetch body: {fetchBody}</div>
+          <div>Timer fired: {String(displayedFetch.timerFired)}</div>
+          <div>Fetch started: {String(displayedFetch.fetchStarted)}</div>
+          <div>Fetch status: {displayedFetch.fetchStatus}</div>
+          <div>Fetch body: {displayedFetch.fetchBody}</div>
         </div>
       </section>
 

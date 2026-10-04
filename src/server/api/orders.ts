@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { auth } from "@/lib/auth";
+import { assertDemoWriteAllowed } from "@/server/auth/demo-access";
 import { getCustomersCollection } from "@/server/db/models/customer";
 import { getProductsCollection } from "@/server/db/models/product";
 import {
@@ -209,6 +210,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getSession(request);
   if (!session) return errorResponse("Authentication required", 401);
+  const demoWriteResponse = await assertDemoWriteAllowed(session.user.id);
+  if (demoWriteResponse) return demoWriteResponse;
 
   try {
     const input = await parseCreateInput(request);
@@ -261,6 +264,8 @@ export async function GET_BY_ID(request: Request, context: { params: Promise<{ i
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await getSession(request);
   if (!session) return errorResponse("Authentication required", 401);
+  const demoWriteResponse = await assertDemoWriteAllowed(session.user.id);
+  if (demoWriteResponse) return demoWriteResponse;
 
   try {
     const id = getId((await context.params).id, "order id");
@@ -332,6 +337,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await getSession(request);
   if (!session) return errorResponse("Authentication required", 401);
+  const demoWriteResponse = await assertDemoWriteAllowed(session.user.id);
+  if (demoWriteResponse) return demoWriteResponse;
 
   try {
     const id = getId((await context.params).id, "order id");

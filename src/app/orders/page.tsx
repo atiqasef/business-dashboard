@@ -1,16 +1,10 @@
-import { redirect } from "next/navigation";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 import { OrdersPage } from "@/features/orders/components/orders-page";
+import { redirect } from "next/navigation";
+import { getCurrentUserAccess } from "@/server/auth/session-access";
 
 export default async function OrdersRoute() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const access = await getCurrentUserAccess();
+  if (!access) redirect("/login");
 
-  if (!session) {
-    redirect("/login");
-  }
-
-  return <OrdersPage />;
+  return <OrdersPage readOnlyDemo={access.isReadOnlyDemo} />;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, Loader2, Package, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Loader2, Package, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { BackToDashboardLink } from "@/components/common/back-to-dashboard-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,7 +98,7 @@ function buildPayload(form: ProductForm) {
   };
 }
 
-export function ProductsPage() {
+export function ProductsPage({ readOnlyDemo }: { readOnlyDemo: boolean }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
@@ -279,9 +279,9 @@ export function ProductsPage() {
         </div>
         <div className="flex flex-col gap-3 self-start sm:self-auto sm:flex-row sm:items-center">
           <BackToDashboardLink />
-          <Button type="button" variant="primary" className="self-start sm:self-auto" onClick={openCreate}>
+          {readOnlyDemo ? <Badge tone="accent">Read-only demo</Badge> : <Button type="button" variant="primary" className="self-start sm:self-auto" onClick={openCreate}>
             <Plus className="size-4" aria-hidden="true" /> Add Product
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -357,7 +357,7 @@ export function ProductsPage() {
                 ? "Try another search or clear the filter to see your full product list."
                 : "Add your first product to begin tracking inventory and pricing."}
             </p>
-            {!search && status === "all" ? (
+            {!readOnlyDemo && !search && status === "all" ? (
               <Button type="button" variant="secondary" className="mt-5" onClick={openCreate}>
                 <Plus className="size-4" aria-hidden="true" /> Add product
               </Button>
@@ -386,6 +386,7 @@ export function ProductsPage() {
                       key={product.id}
                       product={product}
                       deleting={deletingId === product.id}
+                      readOnlyDemo={readOnlyDemo}
                       onView={() => openDetails(product)}
                       onEdit={() => openEdit(product)}
                       onDelete={() => deleteProduct(product)}
@@ -401,6 +402,7 @@ export function ProductsPage() {
                   key={product.id}
                   product={product}
                   deleting={deletingId === product.id}
+                  readOnlyDemo={readOnlyDemo}
                   onView={() => openDetails(product)}
                   onEdit={() => openEdit(product)}
                   onDelete={() => deleteProduct(product)}
@@ -431,7 +433,7 @@ export function ProductsPage() {
         )}
       </Card>
 
-      {modal === "details" && selected ? <DetailsModal product={selected} onClose={() => setModal(null)} onEdit={() => openEdit(selected)} /> : null}
+      {modal === "details" && selected ? <DetailsModal product={selected} readOnlyDemo={readOnlyDemo} onClose={() => setModal(null)} onEdit={() => openEdit(selected)} /> : null}
       {modal === "create" || modal === "edit" ? (
         <ProductFormModal
           mode={modal}
@@ -447,7 +449,7 @@ export function ProductsPage() {
   );
 }
 
-function ProductRow({ product, deleting, onView, onEdit, onDelete }: { product: Product; deleting: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
+function ProductRow({ product, deleting, readOnlyDemo, onView, onEdit, onDelete }: { product: Product; deleting: boolean; readOnlyDemo: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   return (
     <tr className="text-sm">
       <td className="px-5 py-4">
@@ -468,13 +470,13 @@ function ProductRow({ product, deleting, onView, onEdit, onDelete }: { product: 
       </td>
       <td className="px-5 py-4 text-[var(--muted)]">{formatDate(product.createdAt)}</td>
       <td className="px-5 py-4">
-        <ActionMenu deleting={deleting} onView={onView} onEdit={onEdit} onDelete={onDelete} />
+        <ActionMenu deleting={deleting} readOnlyDemo={readOnlyDemo} onView={onView} onEdit={onEdit} onDelete={onDelete} />
       </td>
     </tr>
   );
 }
 
-function ProductMobileCard({ product, deleting, onView, onEdit, onDelete }: { product: Product; deleting: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
+function ProductMobileCard({ product, deleting, readOnlyDemo, onView, onEdit, onDelete }: { product: Product; deleting: boolean; readOnlyDemo: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   return (
     <div className="p-4">
       <div className="flex items-start justify-between gap-3">
@@ -487,7 +489,7 @@ function ProductMobileCard({ product, deleting, onView, onEdit, onDelete }: { pr
             <span className="mt-1 block truncate text-xs text-[var(--muted)]">{product.sku}</span>
           </span>
         </button>
-        <ActionMenu deleting={deleting} onView={onView} onEdit={onEdit} onDelete={onDelete} />
+        <ActionMenu deleting={deleting} readOnlyDemo={readOnlyDemo} onView={onView} onEdit={onEdit} onDelete={onDelete} />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
@@ -514,18 +516,20 @@ function ProductMobileCard({ product, deleting, onView, onEdit, onDelete }: { pr
   );
 }
 
-function ActionMenu({ deleting, onView, onEdit, onDelete }: { deleting: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
+function ActionMenu({ deleting, readOnlyDemo, onView, onEdit, onDelete }: { deleting: boolean; readOnlyDemo: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   return (
     <div className="flex items-center gap-1">
       <Button type="button" variant="icon" className="size-8" aria-label="View product" onClick={onView}>
         <Eye className="size-4" aria-hidden="true" />
       </Button>
-      <Button type="button" variant="icon" className="size-8" aria-label="Edit product" onClick={onEdit}>
-        <Pencil className="size-4" aria-hidden="true" />
-      </Button>
-      <Button type="button" variant="icon" className="size-8 text-red-500 hover:text-red-600" aria-label="Delete product" onClick={onDelete} disabled={deleting}>
-        {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
-      </Button>
+      {!readOnlyDemo ? <>
+        <Button type="button" variant="icon" className="size-8" aria-label="Edit product" onClick={onEdit}>
+          <Pencil className="size-4" aria-hidden="true" />
+        </Button>
+        <Button type="button" variant="icon" className="size-8 text-red-500 hover:text-red-600" aria-label="Delete product" onClick={onDelete} disabled={deleting}>
+          {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
+        </Button>
+      </> : null}
     </div>
   );
 }
@@ -547,7 +551,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
   );
 }
 
-function DetailsModal({ product, onClose, onEdit }: { product: Product; onClose: () => void; onEdit: () => void }) {
+function DetailsModal({ product, readOnlyDemo, onClose, onEdit }: { product: Product; readOnlyDemo: boolean; onClose: () => void; onEdit: () => void }) {
   const fields = [
     ["SKU", product.sku],
     ["Price", formatPrice(product.price)],
@@ -589,9 +593,9 @@ function DetailsModal({ product, onClose, onEdit }: { product: Product; onClose:
 
         <div className="mt-7 flex justify-end gap-3 border-t border-[var(--line)] pt-5">
           <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
-          <Button type="button" variant="primary" onClick={onEdit}>
+          {!readOnlyDemo ? <Button type="button" variant="primary" onClick={onEdit}>
             <Pencil className="size-4" aria-hidden="true" /> Edit product
-          </Button>
+          </Button> : null}
         </div>
       </div>
     </Modal>

@@ -4,6 +4,15 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { parseCookieHeader } from "@/lib/cookies";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error && "message" in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return fallback;
+}
+
 export async function registerUser(formData: FormData) {
   const email = String(formData.get("email") || "").trim();
   const name = String(formData.get("name") || "").trim();
@@ -42,11 +51,11 @@ export async function registerUser(formData: FormData) {
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       success: false,
       errors: {
-        form: error?.message || "Registration failed. Please try again.",
+        form: getErrorMessage(error, "Registration failed. Please try again."),
       },
     };
   }
@@ -84,10 +93,10 @@ export async function loginUser(formData: FormData) {
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       success: false,
-      errors: { form: error?.message || "Login failed. Please try again." },
+      errors: { form: getErrorMessage(error, "Login failed. Please try again.") },
     };
   }
 }

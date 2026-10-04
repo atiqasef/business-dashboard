@@ -77,7 +77,7 @@ const inventory = [
   { name: "Everyday Chino Trouser", sku: "SKU-1142", stock: "9 left", tone: "accent" as const },
 ];
 
-export function DashboardShell() {
+export function DashboardShell({ userName, readOnlyDemo }: { userName: string; readOnlyDemo: boolean }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -149,8 +149,8 @@ export function DashboardShell() {
             <div className={`mt-3 flex items-center gap-3 rounded-xl bg-[var(--surface-soft)] p-3 ${sidebarCollapsed ? "lg:justify-center lg:p-2" : ""}`}>
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent-strong)]">AM</span>
               <div className={sidebarCollapsed ? "lg:hidden" : ""}>
-                <p className="text-xs font-semibold">Alex Morgan</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted)]">Administrator</p>
+                <p className="text-xs font-semibold">{userName || "Account owner"}</p>
+                <p className="mt-0.5 text-[11px] text-[var(--muted)]">{readOnlyDemo ? "Read-only demo" : "Administrator"}</p>
               </div>
               <ChevronDown className={`ml-auto size-4 text-[var(--muted)] ${sidebarCollapsed ? "lg:hidden" : ""}`} aria-hidden="true" />
             </div>
@@ -192,7 +192,7 @@ export function DashboardShell() {
               <div className="relative ml-1 border-l border-[var(--line)] pl-2 sm:ml-2 sm:pl-3">
                 <Button variant="ghost" className="h-10 gap-2 px-2" aria-expanded={profileOpen} aria-haspopup="menu" onClick={() => setProfileOpen(!profileOpen)}>
                   <span className="grid size-8 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent-strong)]">AM</span>
-                  <span className="hidden text-sm font-semibold lg:block">Alex Morgan</span>
+                  <span className="hidden text-sm font-semibold lg:block">{userName || "Account owner"}</span>
                   <ChevronDown className="hidden size-4 sm:block" aria-hidden="true" />
                 </Button>
                 {profileOpen ? <div className="absolute right-0 top-12 w-44 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] p-2 shadow-xl" role="menu"><button className="w-full rounded-lg px-3 py-2 text-left text-sm text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--ink)]" role="menuitem" onClick={() => setProfileOpen(false)}>Profile settings</button></div> : null}
@@ -204,8 +204,9 @@ export function DashboardShell() {
             <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
                 <p className="mb-2 text-xs font-bold tracking-[0.18em] text-[var(--accent)] uppercase">Tuesday, September 22, 2026</p>
-                <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Good morning, Alex</h1>
+                <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Good morning, {userName || "there"}</h1>
                 <p className="mt-2 text-sm text-[var(--muted)]">Here is what is happening across your business today.</p>
+                {readOnlyDemo ? <Badge tone="accent" className="mt-3">Read-only demo</Badge> : null}
               </div>
               <Button variant="secondary" className="self-start sm:self-auto"><FileBarChart className="size-4" aria-hidden="true" />View reports</Button>
             </div>

@@ -8,6 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthShell } from "@/features/auth/components/auth-shell";
 import { authClient } from "@/lib/auth-client";
+import { DEMO_EMAIL, DEMO_NAME, DEMO_PASSWORD } from "@/server/demo/constants";
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error && "message" in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return fallback;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,7 +25,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");;
+  const [error, setError] = useState("");
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,8 +51,8 @@ export default function LoginPage() {
 
       router.push("/dashboard");
       router.refresh();
-    } catch (err: any) {
-      setError(err?.message || "Unable to sign in. Please try again.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Unable to sign in. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -53,6 +63,29 @@ export default function LoginPage() {
       title="Welcome back"
       subtitle="Sign in to manage your business dashboards and operations."
     >
+      <div className="mb-6 rounded-2xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-4">
+        <p className="text-xs font-bold tracking-[0.16em] text-[var(--accent-strong)] uppercase">Demo Account</p>
+        <h3 className="mt-2 text-base font-semibold text-[var(--ink)]">Explore the Business Management Dashboard</h3>
+        <p className="mt-1 text-sm leading-6 text-[var(--muted)]">Login as Atiq to explore a read-only demo account.</p>
+        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+          <div><dt className="text-xs text-[var(--muted)]">Name</dt><dd className="font-semibold text-[var(--ink)]">{DEMO_NAME}</dd></div>
+          <div><dt className="text-xs text-[var(--muted)]">Email</dt><dd className="break-all font-semibold text-[var(--ink)]">{DEMO_EMAIL}</dd></div>
+          <div><dt className="text-xs text-[var(--muted)]">Password</dt><dd className="font-semibold text-[var(--ink)]">{DEMO_PASSWORD}</dd></div>
+        </dl>
+        <Button
+          type="button"
+          variant="secondary"
+          className="mt-4 w-full justify-center"
+          onClick={() => {
+            setEmail(DEMO_EMAIL);
+            setPassword(DEMO_PASSWORD);
+            setError("");
+          }}
+        >
+          Use demo credentials
+        </Button>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <label htmlFor="email" className="text-sm font-medium text-[var(--ink)]">

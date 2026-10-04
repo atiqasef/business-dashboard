@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { assertDemoWriteAllowed } from "@/server/auth/demo-access";
 import {
   customerStatuses,
   ensureCustomerIndexes,
@@ -123,6 +124,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getSession(request);
   if (!session) return errorResponse("Authentication required", 401);
+  const demoWriteResponse = await assertDemoWriteAllowed(session.user.id);
+  if (demoWriteResponse) return demoWriteResponse;
 
   try {
     const input = parseCustomerInput((await request.json()) as CustomerInput);

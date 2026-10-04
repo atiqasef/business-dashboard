@@ -118,17 +118,7 @@ function getStatusTone(status: OrderStatus) {
   }
 }
 
-function parseNumber(value: string, fallback: number) {
-  const nextValue = Number(value);
-  if (!Number.isFinite(nextValue)) return fallback;
-  return nextValue;
-}
-
-function isValidInteger(value: string) {
-  return Number.isInteger(Number(value)) && Number(value) > 0 && Number.isFinite(Number(value));
-}
-
-export function OrdersPage() {
+export function OrdersPage({ readOnlyDemo }: { readOnlyDemo: boolean }) {
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [status, setStatus] = useState<"all" | OrderStatus>("all");
   const [page, setPage] = useState(1);
@@ -144,13 +134,13 @@ export function OrdersPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [customerSearchDraft, setCustomerSearchDraft] = useState("");
-  const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerSummary[]>([]);
   const [customerMap, setCustomerMap] = useState<Record<string, CustomerSummary>>({});
   const [productLookup, setProductLookup] = useState<Record<string, ProductSummary>>({});
   const [productSearchResults, setProductSearchResults] = useState<Record<number, ProductSummary[]>>({});
   const requestRef = useRef(0);
   const customerSearchTimerRef = useRef<number | null>(null);
+  const customerMapRef = useRef(customerMap);
   const productSearchTimerRefs = useRef<Record<number, number | null>>({});
 
   const selectedCustomer = form.customerId ? customerMap[form.customerId] ?? null : null;
@@ -158,6 +148,10 @@ export function OrdersPage() {
     () => form.items.map((item) => `${item.search.trim()}::${item.productId}`).join("|"),
     [form.items],
   );
+
+  useEffect(() => {
+    customerMapRef.current = customerMap;
+  }, [customerMap]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -182,7 +176,8 @@ export function OrdersPage() {
         setOrders(nextOrders);
         setPagination(payload.pagination);
 
-        const customerIds = [...new Set(nextOrders.map((order) => order.customerId))].filter((value) => !!value && !customerMap[value]);
+        const knownCustomers = customerMapRef.current;
+        const customerIds = [...new Set(nextOrders.map((order) => order.customerId))].filter((value) => !!value && !knownCustomers[value]);
         if (customerIds.length > 0) {
           const hydration = await Promise.all(
             customerIds.map(async (id) => {
@@ -213,59 +208,15 @@ export function OrdersPage() {
   }, [page, status, refreshTick]);
 
   useEffect(() => {
-    const trimmed = customerSearchDraft.trim();
-    setCustomerSearch(trimmed);
-
-    if (!trimmed) {
-      setCustomerResults([]);
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      const search = trimmed;
-      const requestId = ++requestRef.current;
-
-      async function loadCustomers() {
-        try {
-          const response = await fetch(`/api/customers?search=${encodeURIComponent(search)}&page=1&pageSize=6`, {
-            credentials: "include",
-          });
-          const payload = await response.json();
-          if (!response.ok) {
-            if (requestId !== requestRef.current) return;
-            setCustomerResults([]);
-            return;
-          }
-          if (requestId === requestRef.current) {
-            setCustomerResults((payload.data ?? []) as CustomerSummary[]);
-          }
-        } catch {
-          if (requestId === requestRef.current) {
-            setCustomerResults([]);
-          }
-        }
-      }
-
-      void loadCustomers();
-    }, 250);
-
-    return () => window.clearTimeout(timeout);
-  }, [customerSearchDraft]);
-
-  useEffect(() => {
     if (!form.items.length) return;
 
     const timeouts: number[] = [];
+    const items = form.items;
 
-    form.items.forEach((item, index) => {
+    items.forEach((item, index) => {
       const trimmedSearch = item.search.trim();
 
       if (!trimmedSearch) {
-        setProductSearchResults((current) => {
-          const next = { ...current };
-          next[index] = [];
-          return next;
-        });
         return;
       }
 
@@ -304,7 +255,7 @@ export function OrdersPage() {
     return () => {
       timeouts.forEach((timeout) => window.clearTimeout(timeout));
     };
-  }, [productSearchSignature]);
+  }, [form.items, productSearchSignature]);
 
   function setFilterStatus(statusValue: "all" | OrderStatus) {
     setStatus(statusValue);
@@ -314,7 +265,6 @@ export function OrdersPage() {
   function handleCustomerSearchChange(value: string) {
     setCustomerSearchDraft(value);
     const trimmed = value.trim();
-    setCustomerSearch(trimmed);
 
     if (customerSearchTimerRef.current) {
       window.clearTimeout(customerSearchTimerRef.current);
@@ -356,7 +306,6 @@ export function OrdersPage() {
     setForm(emptyForm());
     setFormErrors({});
     setCustomerSearchDraft("");
-    setCustomerSearch("");
     setCustomerResults([]);
     setModal("create");
   }
@@ -437,7 +386,6 @@ export function OrdersPage() {
         status: details.status,
       });
       setCustomerSearchDraft(customer ? `${customer.firstName} ${customer.lastName}`.trim() : "");
-      setCustomerSearch("");
       setCustomerResults([]);
       setFormErrors({});
       setModal("edit");
@@ -650,7 +598,6 @@ export function OrdersPage() {
       setPage(1);
       setForm(emptyForm());
       setCustomerSearchDraft("");
-      setCustomerSearch("");
       setCustomerResults([]);
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : "Unable to save order.";
@@ -705,9 +652,9 @@ export function OrdersPage() {
 
         <div className="flex flex-col gap-3 self-start sm:self-auto sm:flex-row sm:items-center">
           <BackToDashboardLink />
-          <Button type="button" variant="primary" className="self-start sm:self-auto" onClick={openCreate}>
+          {readOnlyDemo ? <Badge tone="accent">Read-only demo</Badge> : <Button type="button" variant="primary" className="self-start sm:self-auto" onClick={openCreate}>
             <Plus className="size-4" aria-hidden="true" /> Add order
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -769,7 +716,7 @@ export function OrdersPage() {
                 ? "Try another status to view your full order history."
                 : "Add your first order to start tracking customer purchases and fulfillment."}
             </p>
-            {status === "all" ? (
+            {!readOnlyDemo && status === "all" ? (
               <Button type="button" variant="secondary" className="mt-5" onClick={openCreate}>
                 <Plus className="size-4" aria-hidden="true" /> Add order
               </Button>
@@ -799,6 +746,7 @@ export function OrdersPage() {
                       order={order}
                       customer={customerMap[order.customerId] ?? null}
                       deleting={deletingId === order.id}
+                      readOnlyDemo={readOnlyDemo}
                       onView={() => void openDetails(order)}
                       onEdit={() => void openEdit(order)}
                       onDelete={() => void deleteOrder(order)}
@@ -815,6 +763,7 @@ export function OrdersPage() {
                   order={order}
                   customer={customerMap[order.customerId] ?? null}
                   deleting={deletingId === order.id}
+                  readOnlyDemo={readOnlyDemo}
                   onView={() => void openDetails(order)}
                   onEdit={() => void openEdit(order)}
                   onDelete={() => void deleteOrder(order)}
@@ -846,7 +795,7 @@ export function OrdersPage() {
       </Card>
 
       {modal === "details" && selectedOrder ? (
-        <DetailsModal order={selectedOrder} onClose={() => setModal(null)} onEdit={() => void openEdit(selectedOrder)} customer={customerMap[selectedOrder.customerId] ?? null} productLookup={productLookup} />
+        <DetailsModal order={selectedOrder} readOnlyDemo={readOnlyDemo} onClose={() => setModal(null)} onEdit={() => void openEdit(selectedOrder)} customer={customerMap[selectedOrder.customerId] ?? null} productLookup={productLookup} />
       ) : null}
 
       {modal === "create" || modal === "edit" ? (
@@ -864,11 +813,9 @@ export function OrdersPage() {
             const customer = customerMap[customerId];
             if (customer) {
               setCustomerSearchDraft(`${customer.firstName} ${customer.lastName}`.trim());
-              setCustomerSearch("");
               setCustomerResults([]);
             } else {
               setCustomerSearchDraft("");
-              setCustomerSearch("");
               setCustomerResults([]);
             }
             setFormErrors((current) => ({ ...current, customerId: undefined, form: undefined }));
@@ -922,7 +869,6 @@ export function OrdersPage() {
             setModal(null);
             setForm(emptyForm());
             setCustomerSearchDraft("");
-            setCustomerSearch("");
             setCustomerResults([]);
             setFormErrors({});
           }}
@@ -936,7 +882,7 @@ export function OrdersPage() {
   );
 }
 
-function OrderRow({ order, customer, deleting, onView, onEdit, onDelete }: { order: OrderListItem; customer: CustomerSummary | null; deleting: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
+function OrderRow({ order, customer, deleting, readOnlyDemo, onView, onEdit, onDelete }: { order: OrderListItem; customer: CustomerSummary | null; deleting: boolean; readOnlyDemo: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   return (
     <tr className="text-sm">
       <td className="px-5 py-4">
@@ -954,13 +900,13 @@ function OrderRow({ order, customer, deleting, onView, onEdit, onDelete }: { ord
       </td>
       <td className="px-5 py-4 text-[var(--muted)]">{formatDate(order.createdAt)}</td>
       <td className="px-5 py-4">
-        <ActionMenu deleting={deleting} onView={onView} onEdit={onEdit} onDelete={onDelete} />
+        <ActionMenu deleting={deleting} readOnlyDemo={readOnlyDemo} onView={onView} onEdit={onEdit} onDelete={onDelete} />
       </td>
     </tr>
   );
 }
 
-function OrderMobileCard({ order, customer, deleting, onView, onEdit, onDelete }: { order: OrderListItem; customer: CustomerSummary | null; deleting: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
+function OrderMobileCard({ order, customer, deleting, readOnlyDemo, onView, onEdit, onDelete }: { order: OrderListItem; customer: CustomerSummary | null; deleting: boolean; readOnlyDemo: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   return (
     <div className="p-4">
       <div className="flex items-start justify-between gap-3">
@@ -970,7 +916,7 @@ function OrderMobileCard({ order, customer, deleting, onView, onEdit, onDelete }
           </button>
           <p className="mt-1 truncate text-xs text-[var(--muted)]">{customer ? getCustomerName(customer) : "Loading..."}</p>
         </div>
-        <ActionMenu deleting={deleting} onView={onView} onEdit={onEdit} onDelete={onDelete} />
+        <ActionMenu deleting={deleting} readOnlyDemo={readOnlyDemo} onView={onView} onEdit={onEdit} onDelete={onDelete} />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
@@ -995,18 +941,20 @@ function OrderMobileCard({ order, customer, deleting, onView, onEdit, onDelete }
   );
 }
 
-function ActionMenu({ deleting, onView, onEdit, onDelete }: { deleting: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
+function ActionMenu({ deleting, readOnlyDemo, onView, onEdit, onDelete }: { deleting: boolean; readOnlyDemo: boolean; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   return (
     <div className="flex items-center gap-1">
       <Button type="button" variant="icon" className="size-8" aria-label="View order" onClick={onView}>
         <Eye className="size-4" aria-hidden="true" />
       </Button>
-      <Button type="button" variant="icon" className="size-8" aria-label="Edit order" onClick={onEdit}>
-        <Pencil className="size-4" aria-hidden="true" />
-      </Button>
-      <Button type="button" variant="icon" className="size-8 text-red-500 hover:text-red-600" aria-label="Delete order" onClick={onDelete} disabled={deleting}>
-        {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
-      </Button>
+      {!readOnlyDemo ? <>
+        <Button type="button" variant="icon" className="size-8" aria-label="Edit order" onClick={onEdit}>
+          <Pencil className="size-4" aria-hidden="true" />
+        </Button>
+        <Button type="button" variant="icon" className="size-8 text-red-500 hover:text-red-600" aria-label="Delete order" onClick={onDelete} disabled={deleting}>
+          {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
+        </Button>
+      </> : null}
     </div>
   );
 }
@@ -1030,12 +978,14 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 
 function DetailsModal({
   order,
+  readOnlyDemo,
   customer,
   productLookup,
   onClose,
   onEdit,
 }: {
   order: OrderListItem;
+  readOnlyDemo: boolean;
   customer: CustomerSummary | null;
   productLookup: Record<string, ProductSummary>;
   onClose: () => void;
@@ -1107,7 +1057,7 @@ function DetailsModal({
 
         <div className="mt-7 flex justify-end gap-3 border-t border-[var(--line)] pt-5">
           <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
-          <Button type="button" variant="primary" onClick={onEdit}><Pencil className="size-4" aria-hidden="true" /> Edit order</Button>
+          {!readOnlyDemo ? <Button type="button" variant="primary" onClick={onEdit}><Pencil className="size-4" aria-hidden="true" /> Edit order</Button> : null}
         </div>
       </div>
     </Modal>

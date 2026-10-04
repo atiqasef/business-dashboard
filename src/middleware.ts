@@ -1,20 +1,29 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const publicRoutes = ["/login", "/register", "/"]; 
+const publicRoutes = new Set(["/login", "/register"]);
+
+function hasSessionCookie(request: NextRequest) {
+  return Boolean(
+    request.cookies.get("__Secure-better-auth.session_token") ||
+      request.cookies.get("better-auth.session_token") ||
+      request.cookies.get("session_token"),
+  );
+}
 
 export function middleware(request: NextRequest) {
-  const url = request.nextUrl.clone();
-  const path = url.pathname;
-  const isPublicRoute = publicRoutes.includes(path);
+  const { pathname } = request.nextUrl;
 
-  if (path.startsWith("/_next") || path.startsWith("/api") || path.includes(".")) {
+  if (pathname.startsWith("/_next") || pathname.startsWith("/api") || pathname.includes(".")) {
     return NextResponse.next();
   }
 
-  const sessionCookie = request.cookies.get("__Secure-better-auth.session_token") || request.cookies.get("better-auth.session_token") || request.cookies.get("session_token");
+  if (publicRoutes.has(pathname)) {
+    return NextResponse.next();
+  }
 
-  if (!sessionCookie && !isPublicRoute && path !== "/") {
+  if (!hasSessionCookie(request)) {
+    const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
@@ -23,8 +32,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/((?!api|_next/static|_next/image|favicon.ico|login|register|customers).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };

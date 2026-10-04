@@ -1,16 +1,10 @@
-import { redirect } from "next/navigation";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 import { ProductsPage } from "@/features/products/components/products-page";
+import { redirect } from "next/navigation";
+import { getCurrentUserAccess } from "@/server/auth/session-access";
 
 export default async function ProductsRoute() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const access = await getCurrentUserAccess();
+  if (!access) redirect("/login");
 
-  if (!session) {
-    redirect("/login");
-  }
-
-  return <ProductsPage />;
+  return <ProductsPage readOnlyDemo={access.isReadOnlyDemo} />;
 }

@@ -30,8 +30,14 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — keep committed examples
+.env
+.env.*
+!.env.example
+
+# local session / cookie jars
+cookies.txt
+cookies*.txt
 
 # vercel
 .vercel

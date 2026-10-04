@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { auth } from "@/lib/auth";
+import { assertDemoWriteAllowed } from "@/server/auth/demo-access";
 import { customerStatuses, ensureCustomerIndexes, getCustomersCollection, toCustomerResponse, type CustomerStatus } from "@/server/db/models/customer";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -55,6 +56,8 @@ export async function GET(request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   const session = await getSession(request);
   if (!session) return errorResponse("Authentication required", 401);
+  const demoWriteResponse = await assertDemoWriteAllowed(session.user.id);
+  if (demoWriteResponse) return demoWriteResponse;
   const id = getId((await context.params).id);
   if (!id) return errorResponse("Invalid customer id", 400);
   try {
@@ -76,6 +79,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(request: Request, context: RouteContext) {
   const session = await getSession(request);
   if (!session) return errorResponse("Authentication required", 401);
+  const demoWriteResponse = await assertDemoWriteAllowed(session.user.id);
+  if (demoWriteResponse) return demoWriteResponse;
   const id = getId((await context.params).id);
   if (!id) return errorResponse("Invalid customer id", 400);
   try {
