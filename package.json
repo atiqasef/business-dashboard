@@ -21,6 +21,7 @@
     "pdfkit": "^0.20.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "recharts": "^3.10.1",
     "resend": "^6.32.0"
   },
   "devDependencies": {

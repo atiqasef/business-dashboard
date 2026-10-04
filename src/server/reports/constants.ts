@@ -1,0 +1,4 @@
+export const REPORT_TOP_PRODUCTS_LIMIT = 10;
+export const REPORT_TOP_CUSTOMERS_LIMIT = 10;
+export const REPORT_LOW_STOCK_LIMIT = 10;
+export const REPORT_OUT_OF_STOCK_LIMIT = 10;

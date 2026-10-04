@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   Bell,
+  ChartColumn,
   ChevronRight,
   LayoutDashboard,
   Menu,
@@ -35,6 +36,7 @@ const navIcons: Record<string, LucideIcon> = {
   Products: Package,
   Orders: ShoppingCart,
   Invoices: FileText,
+  Reports: ChartColumn,
 };
 
 export function DashboardShell({
