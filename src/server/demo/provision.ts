@@ -9,9 +9,34 @@ import { ensureProductIndexes, getProductsCollection, type ProductDocument } fro
 import { ensureOrderIndexes, getOrdersCollection, type OrderDocument } from "@/server/db/models/order";
 
 type AuthUserDocument = {
-  id: string;
+  _id?: ObjectId | string;
+  id?: string;
   email: string;
 };
+
+/** Better Auth Mongo documents use `_id`; the adapter exposes `id` only through its API. */
+function resolveAuthUserId(user: AuthUserDocument) {
+  if (typeof user.id === "string" && user.id.length > 0) return user.id;
+  if (typeof user._id === "string" && user._id.length > 0) return user._id;
+  if (user._id instanceof ObjectId) return user._id.toHexString();
+  throw new Error("Demo user record is missing a valid id");
+}
+
+async function isReservedDemoOwner(userId: string) {
+  const users = db.collection<AuthUserDocument>("user");
+  const [demoAccount, owner] = await Promise.all([
+    getDemoAccountsCollection().findOne({ userId, role: DEMO_ROLE }, { projection: { userId: 1 } }),
+    users.findOne(
+      {
+        $or: [{ id: userId }, { _id: ObjectId.isValid(userId) ? new ObjectId(userId) : userId }],
+        email: { $regex: `^${DEMO_EMAIL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+      },
+      { projection: { _id: 1, id: 1, email: 1 } },
+    ),
+  ]);
+
+  return Boolean(demoAccount && owner);
+}
 
 const customerIds = {
   maya: new ObjectId("65f000000000000000000001"),
@@ -39,17 +64,18 @@ async function getOrCreateDemoUser() {
   const users = db.collection<AuthUserDocument>("user");
   const existing = await users.findOne(
     { email: { $regex: `^${DEMO_EMAIL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } },
-    { projection: { id: 1, email: 1 } },
+    { projection: { _id: 1, id: 1, email: 1 } },
   );
 
   if (existing) {
-    const demoAccount = await getDemoAccountsCollection().findOne({ userId: existing.id });
+    const userId = resolveAuthUserId(existing);
+    const demoAccount = await getDemoAccountsCollection().findOne({ userId });
     if (demoAccount && demoAccount.role !== DEMO_ROLE) {
       throw new Error("The reserved demo email belongs to an account that is not the demo account");
     }
     // Missing demoAccounts row is repaired; never claim a non-demo role.
-    await ensureDemoAccount(existing.id);
-    return existing.id;
+    await ensureDemoAccount(userId);
+    return userId;
   }
 
   const result = await auth.api.createUser({
@@ -138,14 +164,27 @@ export async function provisionDemo() {
   await ensureProductIndexes();
   await ensureOrderIndexes();
 
-  const userId = await getOrCreateDemoUser();
-  await ensureDemoAccount(userId);
-
   const existingSeed = await getDemoSeedsCollection().findOne({ seedKey: DEMO_SEED_KEY });
-  if (existingSeed && existingSeed.userId !== userId) {
+  let userId = await getOrCreateDemoUser();
+
+  if (existingSeed) {
+    if (existingSeed.userId === userId) {
+      // Already provisioned for this demo user — reuse without recreating seed data.
+      await ensureDemoAccount(userId);
+      return { userId, reused: true as const };
+    }
+
+    // Prefer the existing seed owner only when they are still the reserved demo account.
+    if (await isReservedDemoOwner(existingSeed.userId)) {
+      userId = existingSeed.userId;
+      await ensureDemoAccount(userId);
+      return { userId, reused: true as const };
+    }
+
     throw new Error("The demo seed is already assigned to another user");
   }
 
+  await ensureDemoAccount(userId);
   await seedCustomers(userId);
   await seedProducts(userId);
   await seedOrders(userId);
@@ -156,4 +195,6 @@ export async function provisionDemo() {
     { $set: { version: DEMO_SEED_VERSION, userId, updatedAt: now }, $setOnInsert: { seedKey: DEMO_SEED_KEY, createdAt: now } },
     { upsert: true },
   );
+
+  return { userId, reused: false as const };
 }

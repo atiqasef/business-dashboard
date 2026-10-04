@@ -1,9 +1,11 @@
+import { ObjectId } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { APP_HOME_PATH, LEGACY_DASHBOARD_PATH } from "@/lib/app-paths";
-import { DEMO_EMAIL, DEMO_PASSWORD } from "@/server/demo/constants";
+import { DEMO_EMAIL, DEMO_PASSWORD, DEMO_SEED_KEY } from "@/server/demo/constants";
 import { getDemoAccountsCollection } from "@/server/db/models/demo-account";
+import { getDemoSeedsCollection } from "@/server/db/models/demo-seed";
 import { getCustomersCollection } from "@/server/db/models/customer";
 import { getProductsCollection } from "@/server/db/models/product";
 import { getOrdersCollection } from "@/server/db/models/order";
@@ -102,5 +104,60 @@ describe("demo account provisioning and login", () => {
 
     const blocked = await assertDemoWriteAllowed(demoUser.id);
     expect(blocked?.status).toBe(403);
+  });
+
+  it("reuses an existing Mongo-style demo user (_id only) across repeated provision and login", async () => {
+    const { db } = await import("@/lib/db");
+    const userObjectId = new ObjectId();
+    const userId = userObjectId.toHexString();
+
+    await db.collection("user").insertOne({
+      _id: userObjectId,
+      email: DEMO_EMAIL,
+      name: "Atiq",
+    });
+    await getDemoAccountsCollection().insertOne({
+      userId,
+      role: "read-only-demo",
+      createdAt: new Date(),
+    });
+    await getDemoSeedsCollection().insertOne({
+      seedKey: DEMO_SEED_KEY,
+      version: 1,
+      userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const first = await provisionDemo();
+    const second = await provisionDemo();
+
+    expect(first).toEqual({ userId, reused: true });
+    expect(second).toEqual({ userId, reused: true });
+    expect(auth.api.createUser).not.toHaveBeenCalled();
+    expect(await getDemoSeedsCollection().countDocuments({ seedKey: DEMO_SEED_KEY, userId })).toBe(1);
+
+    await expect(loginDemoUser()).rejects.toThrow("NEXT_REDIRECT:/");
+    await expect(loginDemoUser()).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(auth.api.signInEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails safely when the demo seed belongs to a non-demo user", async () => {
+    const { db } = await import("@/lib/db");
+    await db.collection("user").insertOne({ id: "demo-user", email: DEMO_EMAIL, name: "Atiq" });
+    await getDemoAccountsCollection().insertOne({
+      userId: "demo-user",
+      role: "read-only-demo",
+      createdAt: new Date(),
+    });
+    await getDemoSeedsCollection().insertOne({
+      seedKey: DEMO_SEED_KEY,
+      version: 1,
+      userId: "someone-else",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await expect(provisionDemo()).rejects.toThrow("The demo seed is already assigned to another user");
   });
 });
