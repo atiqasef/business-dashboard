@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeading } from "@/components/ui/card";
 
 const SUGGESTED_QUESTIONS = [
-  "Give me a summary of my business for the last 30 days.",
+  "What needs my attention?",
+  "Why is revenue changing?",
+  "Which customers need follow-up?",
+  "What are the biggest business risks right now?",
   "Compare revenue with the previous period.",
   "Which products are performing best?",
-  "Who has overdue invoices?",
-  "What should I pay attention to this week?",
 ];
 
 type AssistantKeyMetric = {

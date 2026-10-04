@@ -218,9 +218,48 @@ Security model:
 - Provider timeout ~25s, `max_tokens` capped, one provider call per request
 - Persistent per-user rate limiting remains deferred
 
-Supported question themes: business summary, revenue/period comparison, top products/customers, outstanding/overdue invoices, follow-ups, inventory signals.
+Supported question themes: business summary, revenue/period comparison, top products/customers, outstanding/overdue invoices, follow-ups, inventory signals, attention/risk prompts.
 
 Automated tests mock the AI provider and never call OpenAI. Live OpenAI smoke verification requires a real `OPENAI_API_KEY` and is not claimed unless that key is present.
+
+### Business Insights (proactive, read-only)
+
+The Dashboard shows **Business Insights** derived from the same owner-scoped analytics used by the assistant.
+
+```text
+GET  /api/insights
+  → session.user.id
+  → authoritative analytics context
+  → deterministic insight cards (no OpenAI)
+
+POST /api/insights
+  → session.user.id
+  → recompute deterministic insights
+  → optional one-shot AI executive summary (OpenAI only if configured)
+```
+
+Deterministic rules (UTC last-30-days window unless noted):
+
+| Signal | Threshold |
+| --- | --- |
+| Revenue decline / growth | ≥ 10% change vs previous comparable period; requires ≥ 3 orders in period |
+| Overdue receivables | Any overdue invoice with outstanding balance |
+| Due soon | Unpaid invoices due within reminder window (`DUE_SOON_WINDOW_DAYS`, currently 3) |
+| Low stock | Existing product low/out-of-stock inventory rules |
+| Pending orders | ≥ 3 pending orders (medium at ≥ 8) |
+| Cancellation signal | ≥ 15% cancelled when ≥ 5 orders |
+| Payment collection | Outstanding ≥ 25% of total invoiced, with overdue or weak collections |
+
+At most 5 insights are shown, sorted by severity (`high` → `medium` → `info`). Weak/noisy signals are suppressed rather than shown as confident trends.
+
+AI executive summary:
+
+- Optional button on the Dashboard (not auto-called on every page load)
+- One provider call maximum; summarizes already-computed insight DTOs only
+- If `OPENAI_API_KEY` is missing, insight cards still work; summary stays unavailable
+- AI never mutates business data and never invents authoritative financial totals
+
+Demo accounts may view insights/summaries for demo data only (no mutations, emails, payments, or settings changes).
 
 ### Required environment variables (Vercel)
 
@@ -259,8 +298,9 @@ Set these in the Vercel project (values are never committed):
 
 ## Intentionally deferred
 
-- AI mutation tools / autonomous agents
+- AI mutation tools / autonomous agents / autonomous insight actions
 - Persistent AI chat history / vector RAG
+- Configurable insight thresholds UI
 - Persistent per-user AI rate limiting service
 - PayPal / Paddle / Stripe Connect
 - Subscriptions / recurring billing

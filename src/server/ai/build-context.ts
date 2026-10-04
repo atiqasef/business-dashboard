@@ -3,10 +3,12 @@ import { ensureInvoiceIndexes, getInvoicesCollection } from "@/server/db/models/
 import { ensurePaymentIndexes, getPaymentsCollection } from "@/server/db/models/payment";
 import { getReportData } from "@/server/reports/get-report-data";
 import { endOfUtcDay, startOfUtcDay, type ReportPreset } from "@/server/reports/date-range";
+import { DUE_SOON_WINDOW_DAYS } from "@/server/reminders/constants";
 
 const TOP_N = 10;
 const FOLLOW_UP_LIMIT = 10;
-const DUE_SOON_DAYS = 7;
+/** Aligns assistant/insights due-soon window with reminder eligibility. */
+const DUE_SOON_DAYS = DUE_SOON_WINDOW_DAYS;
 const MAX_CONTEXT_JSON_CHARS = 12_000;
 
 export type AssistantPeriodQuery = {

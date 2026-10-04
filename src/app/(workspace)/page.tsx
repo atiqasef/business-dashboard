@@ -1,5 +1,7 @@
 import { DashboardOverview } from "@/features/dashboard/components/dashboard-overview";
 import { redirect } from "next/navigation";
+import { isAiConfigured } from "@/server/ai/config";
+import { getBusinessInsights } from "@/server/ai/insights";
 import { getCurrentUserAccess } from "@/server/auth/session-access";
 import { getDashboardData } from "@/server/dashboard/get-dashboard-data";
 import type { DashboardData } from "@/server/dashboard/types";
@@ -9,10 +11,21 @@ export default async function Home() {
   if (!access) redirect("/login");
 
   let dashboard: DashboardData | null = null;
+  let insights: Awaited<ReturnType<typeof getBusinessInsights>>["insights"] = [];
+  let insightsPeriodLabel = "Last 30 days";
+
   try {
     dashboard = await getDashboardData(access.session.user.id);
   } catch {
     dashboard = null;
+  }
+
+  try {
+    const insightResult = await getBusinessInsights(access.session.user.id);
+    insights = insightResult.insights;
+    insightsPeriodLabel = insightResult.period.label;
+  } catch {
+    insights = [];
   }
 
   if (!dashboard) {
@@ -34,6 +47,9 @@ export default async function Home() {
       userName={access.session.user.name}
       readOnlyDemo={access.isReadOnlyDemo}
       data={dashboard}
+      insights={insights}
+      insightsPeriodLabel={insightsPeriodLabel}
+      aiConfigured={isAiConfigured()}
     />
   );
 }

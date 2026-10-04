@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeading } from "@/components/ui/card";
 import { TablePlaceholder } from "@/components/ui/placeholders";
+import { BusinessInsightsPanel } from "@/features/dashboard/components/business-insights-panel";
+import type { BusinessInsight } from "@/server/ai/insight-types";
 import { DASHBOARD_LOW_STOCK_THRESHOLD } from "@/server/dashboard/constants";
 import type { DashboardData } from "@/server/dashboard/types";
 import type { OrderStatus } from "@/server/db/models/order";
@@ -73,10 +75,16 @@ export function DashboardOverview({
   userName,
   readOnlyDemo,
   data,
+  insights = [],
+  insightsPeriodLabel = "Last 30 days",
+  aiConfigured = false,
 }: {
   userName: string;
   readOnlyDemo: boolean;
   data: DashboardData;
+  insights?: BusinessInsight[];
+  insightsPeriodLabel?: string;
+  aiConfigured?: boolean;
 }) {
   const { summary, recentOrders, recentCustomers, lowStockProducts, topProducts, statusDistribution, revenueTrend } = data;
   const maxTrendRevenue = Math.max(...revenueTrend.map((point) => point.revenue), 0);
@@ -169,6 +177,14 @@ export function DashboardOverview({
             </Card>
           );
         })}
+      </section>
+
+      <section className="mt-5" aria-label="Business insights">
+        <BusinessInsightsPanel
+          insights={insights}
+          periodLabel={insightsPeriodLabel}
+          aiConfigured={aiConfigured}
+        />
       </section>
 
       <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Receivables overview">
