@@ -14,7 +14,6 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
-  Search,
   Settings as SettingsIcon,
   ShoppingCart,
   Sparkles,
@@ -31,7 +30,6 @@ import {
   isNavItemActive,
 } from "@/components/layout/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 const navIcons: Record<string, LucideIcon> = {
   Dashboard: LayoutDashboard,
@@ -152,18 +150,16 @@ export function DashboardShell({
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="hidden w-52 md:block lg:w-64">
-                <Input aria-label="Search workspace" placeholder="Search workspace" type="search" className="h-10" />
-              </div>
-              <Button type="button" variant="icon" className="md:hidden" aria-label="Search workspace">
-                <Search className="size-5" aria-hidden="true" />
-              </Button>
               <Button type="button" variant="icon" aria-label="Toggle theme" onClick={() => setDarkMode(!darkMode)}>
                 {darkMode ? <Sun className="size-5" aria-hidden="true" /> : <Moon className="size-5" aria-hidden="true" />}
               </Button>
-              <Button type="button" variant="icon" className="relative" aria-label="Notifications">
+              <Link
+                href="/notifications"
+                aria-label="Notifications"
+                className="inline-flex size-10 items-center justify-center rounded-xl text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+              >
                 <Bell className="size-5" aria-hidden="true" />
-              </Button>
+              </Link>
               <div className="ml-1 border-l border-[var(--line)] pl-2 sm:ml-2 sm:pl-3">
                 <AccountMenu userName={userName} userEmail={userEmail} readOnlyDemo={readOnlyDemo} />
               </div>

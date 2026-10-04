@@ -1,15 +1,124 @@
-# Ledger — Business Management Dashboard
+# Ledger — Business Management SaaS
 
-A server-first Next.js business workspace for customers, products, orders, invoices, and payments.
+A production-style business workspace for small operators: customers, catalog, orders, invoices, payments, and the operational tooling around them.
+
+It is built as a server-first Next.js application. Ownership, money, and public access are decided on the server. The browser never chooses the tenant, the plan, or the invoice balance.
+
+## What it does
+
+Ledger gives one authenticated owner a workspace to run day-to-day billing:
+
+- keep customers and products
+- turn orders into invoices
+- collect payments, including optional Stripe Checkout
+- share a tokenized invoice link or a customer portal
+- email invoices and send due reminders
+- read reports, deterministic business insights, and an optional read-only AI assistant
+
+New workspaces get a first-run checklist. Existing workspaces with real records go straight to the dashboard.
+
+## Key capabilities
+
+- Email/password authentication (Better Auth) and a public read-only demo
+- Organization, plan, and entitlement foundation (Free / Starter / Pro / Business)
+- Optional Stripe SaaS subscriptions, separate from customer invoice payments
+- Customers, products, orders, invoices, and manual payments
+- Invoice PDFs, Resend email, and scheduled payment reminders
+- Public invoice links and a separate customer invoice portal
+- Stripe Checkout for outstanding invoice balances, with signature-verified webhooks
+- Reports and dashboard analytics calculated on the server
+- Read-only AI assistant and proactive insights grounded in those analytics
+- Server-derived onboarding for empty workspaces
+
+## Architecture
+
+```text
+Browser
+  → Next.js App Router (UI + route handlers)
+    → Server services (auth, billing, invoices, insights)
+      → MongoDB (native driver, owner-scoped documents)
+
+Organization
+  → Stripe Customer (SaaS)
+    → Stripe Subscription
+      → Plan
+        → Entitlements
+
+Customer invoice
+  → Stripe Checkout (mode=payment)
+    → Signed webhook
+      → Payment record
+        → Invoice balance
+```
+
+Optional edges stay optional: Resend for email, OpenAI for the assistant and insight summary, Stripe for both invoice Checkout and SaaS billing. Missing credentials degrade those features. They do not take the rest of the app down.
+
+## Engineering highlights
+
+- Server-first Next.js architecture with session-derived ownership
+- Tenant isolation: browser `ownerId` / `organizationId` / `planId` are ignored
+- Financial totals and outstanding balances calculated on the server
+- Stripe webhook signature checks, idempotency, and a short processing lease
+- Hashed public invoice and customer-portal tokens, with expiry and revocation
+- Demo account write protection across mutations, email, reminders, and billing
+- AI context is a sanitized analytics DTO, not raw database documents
+- Automated regression suite around auth, billing, portals, and tenancy
+
+## Security
+
+- The signed-in user is the only owner the server will use
+- Public portal access uses bearer tokens stored as hashes
+- Invoice links and customer-portal links are separate capabilities
+- Private and tokenized responses use `Cache-Control: no-store`
+- Webhook bodies are verified before JSON business logic runs
+- Secrets stay in server environment variables, never `NEXT_PUBLIC_*`
+
+## Demo
+
+The login page includes **Sign in as demo**.
+
+- Email: `demo@businessdashboard.com`
+- Password: `Demo@123456`
+
+The demo can browse seeded customers, products, orders, invoices, payments, reports, and insights. It cannot create, edit, pay, email, remind, open billing checkout, or complete onboarding writes.
+
+Local seed (localhost Mongo only):
+
+```bash
+npm run provision:demo
+```
+
+Production uses the same login button, which provisions the demo idempotently against the configured database.
+
+## Development
+
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+npm test
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+The automated suite uses Vitest and an in-memory MongoDB. It does not call live Stripe, Resend, or OpenAI.
 
 ## Stack
 
-- Next.js 16 App Router + React 19 + TypeScript
-- Tailwind CSS
-- MongoDB (native driver)
+- Next.js 16 App Router, React 19, TypeScript
+- Tailwind CSS 4
+- MongoDB native driver
 - Better Auth
-- Stripe Checkout (optional, server-side)
-- Vitest + mongodb-memory-server
+- Stripe (invoice Checkout and SaaS subscriptions)
+- Resend, PDFKit, OpenAI (all optional)
+- Vitest
+
+---
+
+# Operations
+
+The sections below are the implementation notes for setup, billing, and security. They describe what the code actually does.
 
 ## SaaS Architecture
 
@@ -98,7 +207,7 @@ Demo users can view customers, products, orders, invoices, payments, and dashboa
 
 ### Auth landing
 
-Successful email/password login and demo login redirect to `/` (the live dashboard). `/dashboard` is a legacy welcome route and redirects authenticated users to `/`.
+Empty workspaces go to `/onboarding` after signup or login. Workspaces that already have customers, products, orders, or invoices, and the demo account, land on `/`. `/dashboard` is a legacy route and redirects authenticated users to `/`.
 
 ## Core workflow
 
