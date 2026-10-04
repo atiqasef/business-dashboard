@@ -17,6 +17,7 @@ import {
   Search,
   Settings as SettingsIcon,
   ShoppingCart,
+  Sparkles,
   Sun,
   Users,
   FileText,
@@ -40,6 +41,7 @@ const navIcons: Record<string, LucideIcon> = {
   Invoices: FileText,
   Payments: Banknote,
   Reports: ChartColumn,
+  "AI Assistant": Sparkles,
   Notifications: Bell,
   Settings: SettingsIcon,
 };

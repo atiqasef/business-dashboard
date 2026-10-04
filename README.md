@@ -184,6 +184,38 @@ npm run provision:demo
 npm run provision:demo:production
 ```
 
+### AI Business Assistant (read-only)
+
+Authenticated owners can ask natural-language questions at `/assistant` (also in the sidebar as **AI Assistant**).
+
+```text
+POST /api/assistant { question }
+  → session.user.id
+  → owner-scoped dashboard/reports analytics (sanitized DTO)
+  → OpenAI (server-only)
+  → schema-validated answer
+```
+
+Setup:
+
+```bash
+OPENAI_API_KEY=sk-...
+# optional
+OPENAI_MODEL=gpt-4o-mini
+```
+
+Security model:
+
+- Server-only provider; never use `NEXT_PUBLIC_*` for AI secrets
+- Owner identity comes only from the session (browser `ownerId` ignored)
+- Model receives compact sanitized analytics — not raw Mongo documents
+- Read-only: no create/update/void/email/reminder/Stripe actions
+- Demo users may ask questions about demo data only
+- Private responses use `Cache-Control: no-store`
+- Without `OPENAI_API_KEY`, the app still runs and the UI shows “not configured”
+
+Automated tests mock the AI provider and never call OpenAI.
+
 ### Required environment variables (Vercel)
 
 Set these in the Vercel project (values are never committed):
@@ -199,6 +231,8 @@ Set these in the Vercel project (values are never committed):
 - `CRON_SECRET` (invoice reminder cron)
 - `STRIPE_SECRET_KEY` (optional online payments)
 - `STRIPE_WEBHOOK_SECRET` (optional online payments)
+- `OPENAI_API_KEY` (optional AI assistant)
+- `OPENAI_MODEL` (optional; defaults to `gpt-4o-mini`)
 
 ## Security notes
 
@@ -219,6 +253,9 @@ Set these in the Vercel project (values are never committed):
 
 ## Intentionally deferred
 
+- AI mutation tools / autonomous agents
+- Persistent AI chat history / vector RAG
+- Persistent per-user AI rate limiting service
 - PayPal / Paddle / Stripe Connect
 - Subscriptions / recurring billing
 - Multi-currency
