@@ -10,6 +10,13 @@ import { AuthShell } from "@/features/auth/components/auth-shell";
 import { authClient } from "@/lib/auth-client";
 import { APP_HOME_PATH } from "@/lib/app-paths";
 
+async function landingPath() {
+  const response = await fetch("/api/onboarding", { cache: "no-store" });
+  if (!response.ok) return APP_HOME_PATH;
+  const payload = (await response.json().catch(() => null)) as { destination?: string } | null;
+  return payload?.destination === "/onboarding" ? "/onboarding" : APP_HOME_PATH;
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "object" && error && "message" in error) {
@@ -61,7 +68,7 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push(APP_HOME_PATH);
+      router.push(await landingPath());
       router.refresh();
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Unable to create your account. Please try again."));

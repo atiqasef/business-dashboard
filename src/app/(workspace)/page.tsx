@@ -5,6 +5,8 @@ import { getBusinessInsights } from "@/server/ai/insights";
 import { getCurrentUserAccess } from "@/server/auth/session-access";
 import { getDashboardData } from "@/server/dashboard/get-dashboard-data";
 import type { DashboardData } from "@/server/dashboard/types";
+import { getOnboardingStatus } from "@/server/onboarding/status";
+import type { OnboardingStatus } from "@/server/onboarding/status";
 
 export default async function Home() {
   const access = await getCurrentUserAccess();
@@ -26,6 +28,13 @@ export default async function Home() {
     insightsPeriodLabel = insightResult.period.label;
   } catch {
     insights = [];
+  }
+
+  let onboarding: OnboardingStatus | null = null;
+  try {
+    onboarding = await getOnboardingStatus(access.session.user.id);
+  } catch {
+    onboarding = null;
   }
 
   if (!dashboard) {
@@ -50,6 +59,7 @@ export default async function Home() {
       insights={insights}
       insightsPeriodLabel={insightsPeriodLabel}
       aiConfigured={isAiConfigured()}
+      onboarding={onboarding}
     />
   );
 }

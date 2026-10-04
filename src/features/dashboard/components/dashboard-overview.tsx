@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeading } from "@/components/ui/card";
 import { TablePlaceholder } from "@/components/ui/placeholders";
 import { BusinessInsightsPanel } from "@/features/dashboard/components/business-insights-panel";
+import { OnboardingDashboardPrompt } from "@/features/onboarding/components/onboarding-checklist";
+import type { OnboardingStatus } from "@/server/onboarding/status";
 import type { BusinessInsight } from "@/server/ai/insight-types";
 import { DASHBOARD_LOW_STOCK_THRESHOLD } from "@/server/dashboard/constants";
 import type { DashboardData } from "@/server/dashboard/types";
@@ -78,6 +80,7 @@ export function DashboardOverview({
   insights = [],
   insightsPeriodLabel = "Last 30 days",
   aiConfigured = false,
+  onboarding = null,
 }: {
   userName: string;
   readOnlyDemo: boolean;
@@ -85,6 +88,7 @@ export function DashboardOverview({
   insights?: BusinessInsight[];
   insightsPeriodLabel?: string;
   aiConfigured?: boolean;
+  onboarding?: OnboardingStatus | null;
 }) {
   const { summary, recentOrders, recentCustomers, lowStockProducts, topProducts, statusDistribution, revenueTrend } = data;
   const maxTrendRevenue = Math.max(...revenueTrend.map((point) => point.revenue), 0);
@@ -147,6 +151,8 @@ export function DashboardOverview({
           <Link href="/invoices"><Button variant="secondary"><FileText className="size-4" aria-hidden="true" />View invoices</Button></Link>
         </div>
       </div>
+
+      {onboarding ? <OnboardingDashboardPrompt status={onboarding} /> : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Business overview">
         {metrics.map((metric) => {

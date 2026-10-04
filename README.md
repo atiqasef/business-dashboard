@@ -62,6 +62,10 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 
 Subscribe at least to: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`.
 
+### Onboarding
+
+New workspaces without customers, products, orders, or invoices are sent to `/onboarding` after signup or login. Checklist completion is derived on the server from the business profile and existing records. Workspaces that already have business data go straight to the dashboard and are not asked to recreate anything. The demo account stays read-only and cannot persist onboarding completion.
+
 ## Getting started
 
 ```bash

@@ -12,8 +12,8 @@ import { getOrdersCollection } from "@/server/db/models/order";
 import { provisionDemo } from "@/server/demo/provision";
 import { loginDemoUser, loginUser } from "@/features/auth/actions";
 import { assertDemoWriteAllowed } from "@/server/auth/demo-access";
-import { demoUser, mockSession } from "../helpers/auth";
-import { markDemoUser } from "../helpers/fixtures";
+import { demoUser, mockSession, userA } from "../helpers/auth";
+import { markDemoUser, seedCustomer } from "../helpers/fixtures";
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((path: string) => {
@@ -33,17 +33,21 @@ describe("post-auth redirect paths", () => {
     expect(LEGACY_DASHBOARD_PATH).toBe("/dashboard");
   });
 
-  it("redirects successful password login to /", async () => {
+  it("sends an empty workspace to onboarding and an existing workspace home", async () => {
     vi.mocked(auth.api.signInEmail).mockResolvedValue({
-      user: { id: "user-a", email: "a@example.test", name: "A" },
+      user: { id: userA.id, email: "a@example.test", name: "A" },
     } as never);
 
     const formData = new FormData();
     formData.set("email", "a@example.test");
     formData.set("password", "password123");
 
+    await expect(loginUser(formData)).rejects.toThrow("NEXT_REDIRECT:/onboarding");
+    expect(vi.mocked(redirect)).toHaveBeenCalledWith("/onboarding");
+
+    await seedCustomer(userA.id, { firstName: "Existing" });
     await expect(loginUser(formData)).rejects.toThrow("NEXT_REDIRECT:/");
-    expect(vi.mocked(redirect)).toHaveBeenCalledWith("/");
+    expect(vi.mocked(redirect)).toHaveBeenLastCalledWith("/");
   });
 
 });

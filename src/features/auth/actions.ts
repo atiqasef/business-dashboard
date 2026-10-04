@@ -6,6 +6,7 @@ import { parseCookieHeader } from "@/lib/cookies";
 import { connectMongo } from "@/lib/db";
 import { isNextRedirectError } from "@/lib/redirect-error";
 import { APP_HOME_PATH } from "@/lib/app-paths";
+import { getOnboardingStatus } from "@/server/onboarding/status";
 import { DEMO_EMAIL, DEMO_PASSWORD } from "@/server/demo/constants";
 import { provisionDemo } from "@/server/demo/provision";
 
@@ -51,8 +52,9 @@ export async function registerUser(formData: FormData) {
       headers: await parseCookieHeader(),
     });
 
-    if (result && "user" in result) {
-      redirect(APP_HOME_PATH);
+    if (result && "user" in result && result.user?.id) {
+      const onboarding = await getOnboardingStatus(result.user.id);
+      redirect(onboarding.shouldEnterOnboarding ? "/onboarding" : APP_HOME_PATH);
     }
 
     return { success: true };
@@ -98,8 +100,9 @@ export async function loginUser(formData: FormData) {
       headers: await parseCookieHeader(),
     });
 
-    if ("user" in result) {
-      redirect(APP_HOME_PATH);
+    if ("user" in result && result.user?.id) {
+      const onboarding = await getOnboardingStatus(result.user.id);
+      redirect(onboarding.shouldEnterOnboarding ? "/onboarding" : APP_HOME_PATH);
     }
 
     return { success: true };

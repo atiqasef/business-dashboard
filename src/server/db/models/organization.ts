@@ -23,6 +23,10 @@ export interface OrganizationDocument {
   status: OrganizationStatus;
   /** Stripe Customer for SaaS subscription billing only (not invoice payments). */
   stripeCustomerId?: string;
+  /** Server-written when all first-run steps are satisfied. Never trusted from the browser. */
+  onboarding?: {
+    completedAt?: Date;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
