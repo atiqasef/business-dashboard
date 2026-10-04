@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeading } from "@/components/ui/card";
 
 const SUGGESTED_QUESTIONS = [
-  "How is my business doing this month?",
-  "Compare revenue with last month.",
+  "Give me a summary of my business for the last 30 days.",
+  "Compare revenue with the previous period.",
   "Which products are performing best?",
   "Who has overdue invoices?",
-  "What needs my attention?",
+  "What should I pay attention to this week?",
 ];
 
 type AssistantKeyMetric = {
@@ -87,7 +87,11 @@ export function AssistantPage({
         </div>
         <p className="max-w-2xl text-sm text-[var(--muted)]">
           Ask natural-language questions about your sales, invoices, payments, products, and customers.
-          Answers use your authenticated business data only and cannot change anything.
+          Answers are based on your authenticated business data, may include interpretations or recommendations, and
+          cannot change anything. Verify important financial decisions before acting.
+        </p>
+        <p className="max-w-2xl text-xs text-[var(--muted)]">
+          Periods use UTC analytics windows from Reports (for example last 30 days, this month, or this year).
         </p>
       </header>
 

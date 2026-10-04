@@ -101,9 +101,8 @@ export async function askBusinessAssistant(options: {
     throw new AssistantServiceError("AI assistant returned an unexpected response. Please try again.", 502);
   }
 
-  if (!data.period) {
-    data.period = built.context.period.label;
-  }
+  // Prefer authoritative period label from analytics over free-form model period text.
+  data.period = built.context.period.label;
 
   return {
     data,

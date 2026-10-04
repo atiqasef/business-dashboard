@@ -4,7 +4,7 @@ import {
   askBusinessAssistant,
   parseAssistantQuestion,
 } from "@/server/ai/business-assistant";
-import { assertSafeAssistantContext, buildAssistantBusinessContext, inferReportPreset } from "@/server/ai/build-context";
+import { assertSafeAssistantContext, buildAssistantBusinessContext, inferAssistantPeriod } from "@/server/ai/build-context";
 import { normalizeAssistantResponse } from "@/server/ai/schemas";
 import type { AiProvider } from "@/server/ai/provider";
 import { getInvoicesCollection } from "@/server/db/models/invoice";
@@ -30,12 +30,12 @@ describe("assistant validation helpers", () => {
     expect(parseAssistantQuestion("  How is revenue?  ")).toBe("How is revenue?");
   });
 
-  it("infers report presets from natural language", () => {
-    expect(inferReportPreset("How did we do last 7 days?")).toBe("last_7_days");
-    expect(inferReportPreset("Show me the last 90 days")).toBe("last_90_days");
-    expect(inferReportPreset("Compare this month with last month")).toBe("last_30_days");
-    expect(inferReportPreset("Year to date summary")).toBe("this_year");
-    expect(inferReportPreset("Anything interesting?")).toBe("last_30_days");
+  it("infers report periods from natural language", () => {
+    expect(inferAssistantPeriod("How did we do last 7 days?")).toEqual({ preset: "last_7_days" });
+    expect(inferAssistantPeriod("Show me the last 90 days")).toEqual({ preset: "last_90_days" });
+    expect(inferAssistantPeriod("Compare this month with last month").preset).toBe("custom");
+    expect(inferAssistantPeriod("Year to date summary")).toEqual({ preset: "this_year" });
+    expect(inferAssistantPeriod("Anything interesting?")).toEqual({ preset: "last_30_days" });
   });
 
   it("normalizes model responses and drops unsafe sources", () => {

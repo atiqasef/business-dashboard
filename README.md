@@ -213,8 +213,14 @@ Security model:
 - Demo users may ask questions about demo data only
 - Private responses use `Cache-Control: no-store`
 - Without `OPENAI_API_KEY`, the app still runs and the UI shows “not configured”
+- Period windows reuse Reports UTC date-range logic (`last_7_days`, `last_30_days`, calendar this/last month, etc.)
+- Answers must distinguish facts vs interpretations vs recommendations
+- Provider timeout ~25s, `max_tokens` capped, one provider call per request
+- Persistent per-user rate limiting remains deferred
 
-Automated tests mock the AI provider and never call OpenAI.
+Supported question themes: business summary, revenue/period comparison, top products/customers, outstanding/overdue invoices, follow-ups, inventory signals.
+
+Automated tests mock the AI provider and never call OpenAI. Live OpenAI smoke verification requires a real `OPENAI_API_KEY` and is not claimed unless that key is present.
 
 ### Required environment variables (Vercel)
 
