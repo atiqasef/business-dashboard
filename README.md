@@ -60,6 +60,7 @@ Orders represent what a customer purchased. Totals are calculated server-side.
 - Totals (`subtotal`, `discount`, `tax`, `total`) are computed on the server from order data
 - Statuses: `draft`, `issued`, `partially_paid`, `paid`, `overdue`, `cancelled`
 - Issued invoices with payments cannot be cancelled; cancel is preferred over hard delete
+- Download a professional PDF via `GET /api/invoices/:id/pdf` (owner-scoped, read-only; demo users may download)
 
 ### Payments
 

@@ -33,6 +33,7 @@ export default defineConfig({
         "src/server/invoices/**/*.ts",
         "src/server/db/models/**/*.ts",
         "src/app/api/customers/[id]/route.ts",
+        "src/app/api/invoices/[id]/pdf/route.ts",
       ],
       exclude: ["**/*.d.ts", "**/node_modules/**"],
     },

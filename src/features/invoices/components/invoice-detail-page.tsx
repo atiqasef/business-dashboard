@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Banknote,
+  Download,
   Loader2,
   Printer,
   RefreshCw,
@@ -151,6 +152,7 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
   const [feedback, setFeedback] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
   const [cancelling, setCancelling] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [voidingPaymentId, setVoidingPaymentId] = useState<string | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm(0));
@@ -250,6 +252,41 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
     }
   }
 
+  async function downloadPdf() {
+    if (!invoice || downloadingPdf) return;
+
+    setDownloadingPdf(true);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/invoices/${invoice.id}/pdf`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || "Unable to download invoice PDF.");
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const filenameMatch = disposition.match(/filename="([^"]+)"/i);
+      const filename = filenameMatch?.[1] || `invoice-${invoice.invoiceNumber}.pdf`;
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Unable to download invoice PDF.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
   async function cancelInvoice() {
     if (!invoice) return;
     if (!window.confirm(`Cancel invoice ${invoice.invoiceNumber}? This cannot be undone.`)) return;
@@ -324,6 +361,12 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
           <Button type="button" variant="secondary" className="h-9" onClick={() => window.print()}>
             <Printer className="size-4" aria-hidden="true" /> Print
           </Button>
+          {invoice ? (
+            <Button type="button" variant="secondary" className="h-9" onClick={() => void downloadPdf()} disabled={downloadingPdf}>
+              {downloadingPdf ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}
+              {downloadingPdf ? "Downloading..." : "Download PDF"}
+            </Button>
+          ) : null}
           {!readOnlyDemo && invoice && canRecordPayment(invoice) ? (
             <Button type="button" variant="primary" className="h-9" onClick={openPaymentModal}>
               <Banknote className="size-4" aria-hidden="true" /> Record payment
