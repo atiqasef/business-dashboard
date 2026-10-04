@@ -33,3 +33,11 @@ export function buildPublicInvoiceUrl(token: string) {
 export function buildPublicInvoicePdfUrl(token: string) {
   return `${getCanonicalAppUrl()}/invoice/${token}/pdf`;
 }
+
+export function buildCustomerPortalUrl(token: string) {
+  return `${getCanonicalAppUrl()}/portal/${token}`;
+}
+
+export function buildCustomerPortalInvoiceUrl(token: string, invoiceNumber: string) {
+  return `${getCanonicalAppUrl()}/portal/${token}/invoice/${encodeURIComponent(invoiceNumber)}`;
+}

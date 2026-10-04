@@ -12,8 +12,13 @@ function hasSessionCookie(request: NextRequest) {
 }
 
 function isPublicInvoicePath(pathname: string) {
-  // Customer-facing invoice portal — authorized by bearer token in the path, not session.
+  // Customer-facing invoice page — authorized by bearer token in the path, not session.
   return pathname === "/invoice" || pathname.startsWith("/invoice/");
+}
+
+function isPublicCustomerPortalPath(pathname: string) {
+  // Customer invoice history portal — authorized by portal bearer token, not session.
+  return pathname === "/portal" || pathname.startsWith("/portal/");
 }
 
 export function middleware(request: NextRequest) {
@@ -23,7 +28,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (publicRoutes.has(pathname) || isPublicInvoicePath(pathname)) {
+  if (publicRoutes.has(pathname) || isPublicInvoicePath(pathname) || isPublicCustomerPortalPath(pathname)) {
     return NextResponse.next();
   }
 

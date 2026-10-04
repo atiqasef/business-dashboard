@@ -65,6 +65,7 @@ export async function ensureInvoiceIndexes() {
         { key: { ownerId: 1, createdAt: -1 }, name: "owner_createdAt" },
         { key: { ownerId: 1, status: 1 }, name: "owner_status" },
         { key: { ownerId: 1, customerId: 1 }, name: "owner_customerId" },
+        { key: { ownerId: 1, customerId: 1, createdAt: -1 }, name: "owner_customer_createdAt" },
         { key: { ownerId: 1, dueDate: 1 }, name: "owner_dueDate" },
       ])
       .then(() => undefined);

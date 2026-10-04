@@ -188,6 +188,8 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [publicLink, setPublicLink] = useState<PublicLinkState | null>(null);
   const [publicLinkBusy, setPublicLinkBusy] = useState(false);
+  const [portalLink, setPortalLink] = useState<PublicLinkState | null>(null);
+  const [portalLinkBusy, setPortalLinkBusy] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -197,12 +199,16 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
       setError("");
 
       try {
-        const [invoiceResponse, linkResponse] = await Promise.all([
+        const [invoiceResponse, linkResponse, portalResponse] = await Promise.all([
           fetch(`/api/invoices/${invoiceId}`, {
             signal: controller.signal,
             credentials: "include",
           }),
           fetch(`/api/invoices/${invoiceId}/public-link`, {
+            signal: controller.signal,
+            credentials: "include",
+          }),
+          fetch(`/api/invoices/${invoiceId}/portal-link`, {
             signal: controller.signal,
             credentials: "include",
           }),
@@ -218,11 +224,19 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
         } else {
           setPublicLink(null);
         }
+
+        if (portalResponse.ok) {
+          const portalPayload = (await portalResponse.json()) as { data?: PublicLinkState };
+          setPortalLink(portalPayload.data ?? null);
+        } else {
+          setPortalLink(null);
+        }
       } catch (loadError) {
         if (loadError instanceof DOMException && loadError.name === "AbortError") return;
         setError(loadError instanceof Error ? loadError.message : "Unable to load invoice.");
         setInvoice(null);
         setPublicLink(null);
+        setPortalLink(null);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -450,6 +464,71 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
     try {
       await navigator.clipboard.writeText(publicLink.url);
       setFeedback("Public invoice link copied to clipboard.");
+    } catch {
+      setError("Unable to copy link. You can select and copy it manually.");
+    }
+  }
+
+  async function createOrRegeneratePortalLink(regenerate: boolean) {
+    if (!invoice || portalLinkBusy || readOnlyDemo) return;
+    if (
+      regenerate &&
+      !window.confirm("Regenerate this customer portal link? The previous portal link will stop working immediately.")
+    ) {
+      return;
+    }
+
+    setPortalLinkBusy(true);
+    setError("");
+    setFeedback("");
+
+    try {
+      const response = await fetch(`/api/invoices/${invoice.id}/portal-link`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const payload = (await response.json().catch(() => null)) as { data?: PublicLinkState; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error || "Unable to create portal link.");
+      setPortalLink(payload?.data ?? null);
+      setFeedback(regenerate ? "Customer portal link regenerated." : "Customer portal link created.");
+    } catch (linkError) {
+      setError(linkError instanceof Error ? linkError.message : "Unable to create portal link.");
+    } finally {
+      setPortalLinkBusy(false);
+    }
+  }
+
+  async function revokePortalLink() {
+    if (!invoice || portalLinkBusy || readOnlyDemo) return;
+    if (!window.confirm("Revoke the customer portal link? The customer will no longer be able to open their invoice history.")) {
+      return;
+    }
+
+    setPortalLinkBusy(true);
+    setError("");
+    setFeedback("");
+
+    try {
+      const response = await fetch(`/api/invoices/${invoice.id}/portal-link`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const payload = (await response.json().catch(() => null)) as { data?: PublicLinkState; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error || "Unable to revoke portal link.");
+      setPortalLink(payload?.data ?? null);
+      setFeedback("Customer portal link revoked.");
+    } catch (linkError) {
+      setError(linkError instanceof Error ? linkError.message : "Unable to revoke portal link.");
+    } finally {
+      setPortalLinkBusy(false);
+    }
+  }
+
+  async function copyPortalLink() {
+    if (!portalLink?.url) return;
+    try {
+      await navigator.clipboard.writeText(portalLink.url);
+      setFeedback("Customer portal link copied to clipboard.");
     } catch {
       setError("Unable to copy link. You can select and copy it manually.");
     }
@@ -867,6 +946,87 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
                 </Button>
                 {readOnlyDemo ? (
                   <p className="text-sm text-[var(--muted)]">Demo accounts can view link state but cannot create or revoke links.</p>
+                ) : null}
+              </div>
+            )}
+          </Card>
+
+          <Card className="mt-6 print:hidden">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Customer portal</h2>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  Share a secure portal so this customer can view their invoice history and pay eligible invoices.
+                  This is separate from the single-invoice link above.
+                </p>
+              </div>
+              {portalLink?.status === "active" ? <Badge tone="positive">Active</Badge> : null}
+              {portalLink?.status === "expired" ? <Badge tone="warning">Expired</Badge> : null}
+              {portalLink?.status === "revoked" ? <Badge tone="neutral">Revoked</Badge> : null}
+              {portalLink?.status === "none" || !portalLink ? <Badge tone="neutral">No active portal</Badge> : null}
+            </div>
+
+            {portalLink?.status === "active" && portalLink.url ? (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 font-mono text-xs break-all text-[var(--ink)]">
+                  {portalLink.url}
+                </div>
+                <p className="text-sm text-[var(--muted)]">
+                  Expires {portalLink.expiresAt ? formatDate(portalLink.expiresAt) : "—"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" className="h-9" onClick={() => void copyPortalLink()}>
+                    <Copy className="size-4" aria-hidden="true" /> Copy Link
+                  </Button>
+                  <a href={portalLink.url} target="_blank" rel="noopener noreferrer">
+                    <Button type="button" variant="secondary" className="h-9">
+                      <ExternalLink className="size-4" aria-hidden="true" /> Open Portal
+                    </Button>
+                  </a>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-9"
+                    onClick={() => void createOrRegeneratePortalLink(true)}
+                    disabled={portalLinkBusy || readOnlyDemo}
+                    title={readOnlyDemo ? "Demo account cannot regenerate portal links." : "Regenerate portal link"}
+                  >
+                    {portalLinkBusy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="size-4" aria-hidden="true" />}
+                    Regenerate
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-9 text-red-600"
+                    onClick={() => void revokePortalLink()}
+                    disabled={portalLinkBusy || readOnlyDemo}
+                    title={readOnlyDemo ? "Demo account cannot revoke portal links." : "Revoke portal link"}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="h-9"
+                  onClick={() => void createOrRegeneratePortalLink(false)}
+                  disabled={portalLinkBusy || readOnlyDemo}
+                  title={readOnlyDemo ? "Demo account cannot create portal links." : "Create customer portal link"}
+                >
+                  {portalLinkBusy ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Link2 className="size-4" aria-hidden="true" />
+                  )}
+                  {portalLink?.status === "expired" || portalLink?.status === "revoked"
+                    ? "Create New Portal Link"
+                    : "Create Portal Link"}
+                </Button>
+                {readOnlyDemo ? (
+                  <p className="text-sm text-[var(--muted)]">Demo accounts can view portal link state but cannot create or revoke links.</p>
                 ) : null}
               </div>
             )}

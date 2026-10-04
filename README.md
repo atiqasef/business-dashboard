@@ -65,7 +65,8 @@ Orders represent what a customer purchased. Totals are calculated server-side.
 - Issued invoices with payments cannot be cancelled; cancel is preferred over hard delete
 - Download a professional PDF via `GET /api/invoices/:id/pdf` (owner-scoped, read-only; demo users may download)
 - Email the same PDF via `POST /api/invoices/:id/email` to the owned customer's server-side email (demo cannot send)
-- Share a secure customer link via `/invoice/<token>` (token hash stored server-side)
+- Share a secure single-invoice link via `/invoice/<token>` (token hash stored server-side)
+- Share a separate customer portal link via `/portal/<token>` for that customer's invoice history (does not broaden invoice-only links)
 
 ### Invoice email (Resend)
 
@@ -88,6 +89,29 @@ The app builds without these variables. Sending fails at runtime with a clear co
 - Concurrent overpayment is guarded with an atomic outstanding-balance reservation
 - Payments are not hard-deleted; use void (`DELETE /api/payments/:id`) to reverse them and recalculate invoice status
 - Demo users can view invoices/payments but cannot mutate them
+
+### Customer portal (token-based)
+
+Phase 14 adds a **separate** customer portal access model from the single-invoice link:
+
+| Link type | URL | Scope |
+|---|---|---|
+| Invoice access | `/invoice/<token>` | One invoice only |
+| Customer portal | `/portal/<token>` | All invoices for `ownerId + customerId` |
+
+Invoice-only tokens **do not** unlock the portal. Portal tokens are created from invoice detail → **Customer portal → Create Portal Link**.
+
+Security notes:
+
+- Bearer tokens are hashed at rest (same cryptographic approach as invoice access)
+- Boundary is `ownerId + customerId` (not email alone)
+- TTL matches invoice access (30 days)
+- Revocation immediately invalidates list/detail/PDF/checkout for that portal
+- No customer accounts, passwords, or Better Auth customer users in this phase
+- Public responses never include `ownerId`, Mongo IDs, or payment/reminder internals
+
+Portal invoice detail: `/portal/<token>/invoice/<invoiceNumber>`  
+Portal PDF/checkout APIs validate the invoice belongs to the portal customer context before acting.
 
 ### Stripe Checkout (optional)
 
