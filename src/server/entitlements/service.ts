@@ -111,7 +111,7 @@ export async function assertWithinLimit(
   return { limit, current };
 }
 
-/** Safe DTO for Settings / GET /api/organization — no Mongo IDs or ownerUserId. */
+/** @deprecated Prefer toPublicOrganizationResponse from organizations/resolve. */
 export function toPublicOrganizationEntitlements(
   organization: OrganizationDocument,
   entitlements: OrganizationEntitlements,
@@ -127,9 +127,8 @@ export function toPublicOrganizationEntitlements(
     features: entitlements.features,
     limits: entitlements.limits,
     billing: {
-      // Explicitly communicate that SaaS subscription charging is not live.
-      subscriptionBilling: "not_implemented" as const,
-      note: "Subscription billing and plan upgrades will arrive in a later phase. Invoice Stripe Checkout remains for customer invoice payments only.",
+      subscriptionBilling: "not_configured" as const,
+      note: "Use organizations/resolve for full billing status.",
     },
   };
 }

@@ -1,5 +1,10 @@
 import type Stripe from "stripe";
 import { ObjectId } from "mongodb";
+import {
+  processSaasCheckoutSessionCompleted,
+  processStripeSubscriptionEvent,
+  processSubscriptionInvoiceEvent,
+} from "@/server/billing/webhook-handlers";
 import { getInvoicesCollection } from "@/server/db/models/invoice";
 import { getPaymentsCollection } from "@/server/db/models/payment";
 import {
@@ -237,6 +242,19 @@ export async function handleStripeWebhookEvent(event: Stripe.Event): Promise<Str
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
+
+      // SaaS subscription Checkout (mode=subscription) — independent from invoice payments.
+      const saas = await processSaasCheckoutSessionCompleted(session);
+      if (saas.handled) {
+        if (saas.ignored) {
+          await markEvent(event.id, "ignored");
+          return { httpStatus: 200, body: { received: true, ignored: true } };
+        }
+        await markEvent(event.id, "processed");
+        return { httpStatus: 200, body: { received: true } };
+      }
+
+      // Customer invoice Checkout (mode=payment + invoice_checkout_v1).
       const result = await processCheckoutSessionCompleted(session);
       if (result.ignored) {
         await markEvent(event.id, "ignored");
@@ -246,7 +264,37 @@ export async function handleStripeWebhookEvent(event: Stripe.Event): Promise<Str
       return { httpStatus: 200, body: { received: true, duplicate: result.duplicate } };
     }
 
-    // Card-only Checkout — async payment events are acknowledged but not applied.
+    if (
+      event.type === "customer.subscription.created" ||
+      event.type === "customer.subscription.updated" ||
+      event.type === "customer.subscription.deleted"
+    ) {
+      const subscription = event.data.object as Stripe.Subscription;
+      const result = await processStripeSubscriptionEvent(subscription);
+      if (result.ignored) {
+        await markEvent(event.id, "ignored");
+        return { httpStatus: 200, body: { received: true, ignored: true } };
+      }
+      await markEvent(event.id, "processed");
+      return { httpStatus: 200, body: { received: true } };
+    }
+
+    if (event.type === "invoice.paid" || event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const result = await processSubscriptionInvoiceEvent(invoice);
+      if (!result.handled) {
+        await markEvent(event.id, "ignored");
+        return { httpStatus: 200, body: { received: true, ignored: true } };
+      }
+      if (result.ignored) {
+        await markEvent(event.id, "ignored");
+        return { httpStatus: 200, body: { received: true, ignored: true } };
+      }
+      await markEvent(event.id, "processed");
+      return { httpStatus: 200, body: { received: true } };
+    }
+
+    // Card-only invoice Checkout — async payment events are acknowledged but not applied.
     if (
       event.type === "checkout.session.async_payment_succeeded" ||
       event.type === "checkout.session.async_payment_failed"

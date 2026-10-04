@@ -20,7 +20,8 @@ import { jsonRequest, readJson } from "../helpers/http";
 describe("plan definitions", () => {
   it("resolves centralized plans and default free entitlements", () => {
     expect(getPlan("free").name).toBe("Free");
-    expect(getPlan("starter").features.aiAssistant).toBe(false);
+    expect(getPlan("free").features.aiAssistant).toBe(false);
+    expect(getPlan("starter").features.aiAssistant).toBe(true);
     expect(getPlan("pro").features.aiAssistant).toBe(true);
     expect(getPlan("business").limits.customers).toBeNull();
     expect(PLANS.free.features.proactiveInsights).toBe(true);
@@ -80,14 +81,16 @@ describe("organization provisioning", () => {
 describe("entitlements", () => {
   it("allows and denies features from centralized plan config", async () => {
     const org = await ensureOrganizationForUser(userA.id);
-    expect(hasFeature(org, "aiAssistant")).toBe(true);
+    expect(hasFeature(org, "aiAssistant")).toBe(false);
     assertFeature(org, "reports");
 
-    const starterOrg = { ...org, planId: "starter" as const };
-    expect(hasFeature(starterOrg, "aiAssistant")).toBe(false);
-    expect(() => assertFeature(starterOrg, "aiAssistant")).toThrow(EntitlementError);
+    const proOrg = { ...org, planId: "pro" as const };
+    expect(hasFeature(proOrg, "aiAssistant")).toBe(true);
+    assertFeature(proOrg, "aiAssistant");
+
+    expect(() => assertFeature(org, "aiAssistant")).toThrow(EntitlementError);
     try {
-      assertFeature(starterOrg, "aiInsightSummary");
+      assertFeature(org, "aiInsightSummary");
     } catch (error) {
       expect(error).toMatchObject({ code: "PLAN_FEATURE_DENIED", status: 403 });
     }
@@ -109,10 +112,10 @@ describe("entitlements", () => {
       ),
     ).resolves.toMatchObject({ current: expect.any(Number), limit: PLANS.free.limits.customers });
 
-    // starter.monthlyAiQueries = 0 and meter currently returns 0 → limit reached.
+    // free.monthlyAiQueries = 0 and meter currently returns 0 → limit reached.
     await expect(
       assertWithinLimit(
-        { ownerUserId: userA.id, planId: "starter", status: "active" },
+        { ownerUserId: userA.id, planId: "free", status: "active" },
         "monthlyAiQueries",
       ),
     ).rejects.toMatchObject({
@@ -138,9 +141,11 @@ describe("entitlements", () => {
       data: {
         plan: { id: "free", name: "Free" },
         status: "active",
-        billing: { subscriptionBilling: "not_implemented" },
       },
     });
+    expect(["configured", "not_configured"]).toContain(
+      (payload?.data as { billing?: { subscriptionBilling?: string } })?.billing?.subscriptionBilling,
+    );
     expect(JSON.stringify(payload)).not.toContain("user-b");
     expect(JSON.stringify(payload)).not.toContain("ownerUserId");
   });

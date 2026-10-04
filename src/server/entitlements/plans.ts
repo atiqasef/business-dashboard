@@ -46,11 +46,7 @@ export type PlanDefinition = {
   features: Record<PlanFeature, boolean>;
 };
 
-/**
- * Default plan for newly provisioned organizations.
- * AI features remain enabled on Free until subscription billing ships, so existing
- * production behavior is not suddenly restricted.
- */
+/** Default plan for newly provisioned organizations. */
 export const DEFAULT_PLAN_ID: PlanId = "free";
 
 const CORE_FEATURES_ON: Pick<
@@ -83,13 +79,12 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
       products: 200,
       orders: 2_000,
       invoices: 2_000,
-      monthlyAiQueries: 100,
+      monthlyAiQueries: 0,
     },
     features: {
       ...CORE_FEATURES_ON,
-      // Temporary: keep AI available on Free until SaaS subscription billing.
-      aiAssistant: true,
-      aiInsightSummary: true,
+      aiAssistant: false,
+      aiInsightSummary: false,
     },
   },
   starter: {
@@ -100,13 +95,12 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
       products: 500,
       orders: 5_000,
       invoices: 5_000,
-      monthlyAiQueries: 0,
+      monthlyAiQueries: 250,
     },
     features: {
       ...CORE_FEATURES_ON,
-      // Used in tests / future commercial matrix — AI gated off.
-      aiAssistant: false,
-      aiInsightSummary: false,
+      aiAssistant: true,
+      aiInsightSummary: true,
     },
   },
   pro: {

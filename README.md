@@ -13,40 +13,54 @@ A server-first Next.js business workspace for customers, products, orders, invoi
 
 ## SaaS Architecture
 
-Phase 20 introduces a **plan/entitlement foundation** without subscription charging.
-
 ```text
 User (Better Auth)
   → Organization (workspace; ownerUserId)
-    → Plan (free | starter | pro | business)
-      → Entitlements (features + limits)
-        → Existing owner-scoped business data
+    → SaaS Subscription (optional)
+      → Stripe Customer + Stripe Subscription
+        → Plan (free | starter | pro | business)
+          → Entitlements (features + limits)
+            → Existing owner-scoped business data
 ```
 
 **Compatibility with `ownerId`:**
 
-- Today every business document (`customers`, `products`, `orders`, `invoices`, `payments`, …) is scoped by `ownerId` = Better Auth user id.
+- Business documents remain scoped by `ownerId` = Better Auth user id.
 - `organizations.ownerUserId` maps 1:1 to that same id.
-- No destructive rename/migration of business collections in this phase.
-- Future phases may add `organizationId` on business docs plus team members/roles.
+- No destructive migration of business collections.
 
-**What exists now:**
+### Two separate Stripe flows
 
-- Idempotent organization provisioning (unique `ownerUserId` + `slug`)
-- Central plan definitions in `src/server/entitlements/plans.ts`
-- Server entitlement helpers (`hasFeature`, `assertFeature`, `assertWithinLimit`)
-- Settings “Current plan” visibility + `GET /api/organization`
-- Soft AI feature checks that resolve the org server-side (Free currently keeps AI enabled so production behavior is not suddenly restricted)
+| Flow | Path | Stripe mode | Purpose |
+| --- | --- | --- | --- |
+| Customer invoice payments | Invoice / portal → Checkout | `payment` | Collect money on a business invoice |
+| SaaS subscriptions | Settings → Billing | `subscription` | Unlock application plan entitlements |
 
-**Not implemented yet:**
+Do not mix `invoiceId` with `subscriptionId`. Invoice payment records never represent SaaS subscriptions.
 
-- Stripe subscription Checkout / Billing webhooks
-- Pricing page, trials, coupons, plan upgrade charging
-- Team invitations, members, RBAC
-- Usage metering for monthly AI queries
-- Organization switching
+### SaaS Billing
 
-Invoice Stripe Checkout remains **customer invoice payment** infrastructure — it is not SaaS subscription billing.
+- Free plan works without Stripe credentials.
+- Paid plans map to server env Price IDs only (`STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS`).
+- Browser cannot supply `priceId`, `stripeCustomerId`, `organizationId`, or redirect URLs.
+- `POST /api/billing/checkout` starts subscription Checkout.
+- `POST /api/billing/portal` opens Stripe Billing Customer Portal.
+- Webhooks (`/api/webhooks/stripe`) verify signatures, reuse idempotency leases, and sync subscription → organization plan.
+- Unknown Stripe Price IDs never grant paid entitlements.
+- Entitlement policy: `active` / `trialing` / `past_due` keep paid plan; `canceled` keeps access until `currentPeriodEnd`; `unpaid` / `incomplete*` / `paused` fall back to Free.
+- Demo accounts can view billing status but cannot checkout or open the portal.
+
+### Stripe webhook setup (test mode)
+
+1. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the three `STRIPE_PRICE_*` values.
+2. Create Products/Prices in Stripe Dashboard (or CLI) and paste Price IDs into env.
+3. Forward events:
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+
+Subscribe at least to: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`.
 
 ## Getting started
 
@@ -314,7 +328,8 @@ Values are never committed. See `.env.example`.
 
 - `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME` — invoice/reminder email
 - `CRON_SECRET` — authorizes `GET/POST /api/cron/invoice-reminders` (see `vercel.json` daily 09:00 UTC schedule)
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` — online Checkout + webhook
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` — invoice Checkout + SaaS billing webhook
+- `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS` — SaaS subscription Price IDs
 - `OPENAI_API_KEY`, `OPENAI_MODEL` — AI assistant + optional insight executive summary
 
 Public invoice/portal link TTL is a server constant (30 days), not an environment variable.
@@ -353,8 +368,8 @@ Unauthenticated deployment probe. Returns `{ status, checks }` with MongoDB ping
 
 ## Intentionally deferred
 
-- Stripe subscription billing / SaaS Checkout / plan upgrade charging
 - Pricing page, trials, coupons, VAT for SaaS invoices
+- In-app plan proration UI beyond Stripe Customer Portal
 - Team invitations, members, organization switching, RBAC
 - Migrating business documents from `ownerId` to `organizationId`
 - AI mutation tools / autonomous agents / autonomous insight actions

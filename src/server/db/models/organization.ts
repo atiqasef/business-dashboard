@@ -21,6 +21,8 @@ export interface OrganizationDocument {
   ownerUserId: string;
   planId: PlanId;
   status: OrganizationStatus;
+  /** Stripe Customer for SaaS subscription billing only (not invoice payments). */
+  stripeCustomerId?: string;
   createdAt: Date;
   updatedAt: Date;
 }

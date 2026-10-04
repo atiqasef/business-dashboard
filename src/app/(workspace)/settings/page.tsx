@@ -27,6 +27,7 @@ export default async function SettingsRoute() {
       status: publicOrg.status,
       plan: publicOrg.plan,
       features: publicOrg.features,
+      subscription: publicOrg.subscription,
       billing: publicOrg.billing,
     };
   } catch {

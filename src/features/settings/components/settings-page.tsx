@@ -213,7 +213,7 @@ export function SettingsPage({
 
       {planStatus ? (
         <div className="mb-5">
-          <PlanStatusCard planStatus={planStatus} />
+          <PlanStatusCard planStatus={planStatus} readOnlyDemo={readOnlyDemo} />
         </div>
       ) : null}
 
