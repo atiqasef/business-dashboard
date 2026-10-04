@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 
 type InvoiceStatus = "draft" | "issued" | "partially_paid" | "paid" | "overdue" | "cancelled";
 
-type PaymentMethod = "cash" | "bank_transfer" | "card" | "mobile_banking" | "other";
+type PaymentMethod = "cash" | "bank_transfer" | "card" | "mobile_banking" | "stripe" | "other";
 
 type InvoiceItem = {
   productId: string;
@@ -45,6 +45,8 @@ type PaymentRecord = {
   reference: string | null;
   paymentDate: string;
   notes: string | null;
+  provider?: string | null;
+  providerPaymentId?: string | null;
   voidedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -128,6 +130,7 @@ function formatStatusLabel(status: InvoiceStatus) {
 }
 
 function formatPaymentMethod(method: PaymentMethod) {
+  if (method === "stripe") return "Stripe";
   return method.replace(/_/g, " ");
 }
 

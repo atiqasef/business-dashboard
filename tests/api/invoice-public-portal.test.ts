@@ -26,6 +26,11 @@ vi.mock("@/server/email/send-email", () => ({
   sendEmail: vi.fn(),
 }));
 
+beforeEach(() => {
+  delete process.env.STRIPE_SECRET_KEY;
+  delete process.env.STRIPE_WEBHOOK_SECRET;
+});
+
 function tokenParams(token: string) {
   return { params: Promise.resolve({ token }) };
 }
@@ -134,7 +139,8 @@ describe("invoice public portal access", () => {
     expect(dto.customer.name).toContain("Grace");
     expect(dto.business.businessName).toBeTruthy();
     expect(dto.payment.onlinePaymentsAvailable).toBe(false);
-    expect(dto.payment.message).toMatch(/coming soon/i);
+    expect(dto.payment.canPay).toBe(false);
+    expect(dto.payment.message).toMatch(/not configured/i);
 
     const serialized = JSON.stringify(dto);
     expect(serialized).not.toContain(userA.id);

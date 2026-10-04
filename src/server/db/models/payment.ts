@@ -1,8 +1,11 @@
 import { ObjectId, type Collection } from "mongodb";
 import { db } from "@/lib/db";
 
-export const paymentMethods = ["cash", "bank_transfer", "card", "mobile_banking", "other"] as const;
+export const paymentMethods = ["cash", "bank_transfer", "card", "mobile_banking", "stripe", "other"] as const;
 export type PaymentMethod = (typeof paymentMethods)[number];
+
+export const paymentProviders = ["stripe"] as const;
+export type PaymentProvider = (typeof paymentProviders)[number];
 
 export interface PaymentDocument {
   _id?: ObjectId;
@@ -15,6 +18,10 @@ export interface PaymentDocument {
   reference?: string;
   paymentDate: Date;
   notes?: string;
+  /** Online payment provider — absent for manual payments. */
+  provider?: PaymentProvider;
+  /** Stable provider transaction id (e.g. Stripe PaymentIntent id). */
+  providerPaymentId?: string;
   voidedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -35,6 +42,15 @@ export async function ensurePaymentIndexes() {
         { key: { ownerId: 1, paymentDate: -1 }, name: "owner_paymentDate" },
         { key: { ownerId: 1, createdAt: -1 }, name: "owner_createdAt" },
         { key: { ownerId: 1, paymentMethod: 1, paymentDate: -1 }, name: "owner_method_paymentDate" },
+        {
+          key: { provider: 1, providerPaymentId: 1 },
+          name: "provider_providerPaymentId_unique",
+          unique: true,
+          partialFilterExpression: {
+            provider: { $type: "string" },
+            providerPaymentId: { $type: "string" },
+          },
+        },
       ])
       .then(() => undefined);
   }
@@ -53,6 +69,8 @@ export function toPaymentResponse(payment: PaymentDocument) {
     reference: payment.reference ?? null,
     paymentDate: payment.paymentDate.toISOString(),
     notes: payment.notes ?? null,
+    provider: payment.provider ?? null,
+    providerPaymentId: payment.providerPaymentId ?? null,
     voidedAt: payment.voidedAt ? payment.voidedAt.toISOString() : null,
     createdAt: payment.createdAt.toISOString(),
     updatedAt: payment.updatedAt.toISOString(),

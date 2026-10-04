@@ -1,17 +1,19 @@
+import { isStripeConfigured } from "@/server/payments/providers/stripe-config";
+import { stripeInvoicePaymentProvider } from "@/server/payments/providers/stripe-provider";
+
 /**
- * Future online payment provider abstraction.
- * Phase 12 intentionally ships no Stripe/PayPal SDK or checkout.
+ * Online payment provider abstraction.
  *
- * Expected future flow:
- * 1. createCheckoutSession for a public invoice access token
+ * Flow:
+ * 1. createCheckoutSession for a validated public invoice access token context
  * 2. provider webhook verifies the event
- * 3. payment is recorded through existing internal payment APIs
+ * 3. payment is recorded through existing internal payment recording
  * 4. invoice outstanding/status update via existing business logic
  */
 export type InvoiceCheckoutSessionInput = {
   ownerId: string;
   invoiceId: string;
-  /** Public invoice access token that authorized the customer view. */
+  /** Public invoice access token that authorized the customer view (not sent to Stripe). */
   accessToken: string;
   successUrl: string;
   cancelUrl: string;
@@ -29,7 +31,7 @@ export type InvoicePaymentProvider = {
   createCheckoutSession(input: InvoiceCheckoutSessionInput): Promise<InvoiceCheckoutSession>;
 };
 
-/** Placeholder provider — online checkout is not available yet. */
+/** Placeholder provider — online checkout is not available. */
 export const unavailableInvoicePaymentProvider: InvoicePaymentProvider = {
   id: "none",
   isConfigured: () => false,
@@ -39,5 +41,6 @@ export const unavailableInvoicePaymentProvider: InvoicePaymentProvider = {
 };
 
 export function getInvoicePaymentProvider(): InvoicePaymentProvider {
+  if (isStripeConfigured()) return stripeInvoicePaymentProvider;
   return unavailableInvoicePaymentProvider;
 }

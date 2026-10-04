@@ -19,11 +19,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-type PaymentMethod = "cash" | "bank_transfer" | "card" | "mobile_banking" | "other";
+type PaymentMethod = "cash" | "bank_transfer" | "card" | "mobile_banking" | "stripe" | "other";
 type PaymentDatePreset = "all_time" | "last_7_days" | "last_30_days" | "last_90_days" | "custom";
 type PaymentStatus = "active" | "voided";
 
-const PAYMENT_METHODS: PaymentMethod[] = ["cash", "bank_transfer", "card", "mobile_banking", "other"];
+const MANUAL_PAYMENT_METHODS: PaymentMethod[] = ["cash", "bank_transfer", "card", "mobile_banking", "other"];
+const PAYMENT_METHODS: PaymentMethod[] = [...MANUAL_PAYMENT_METHODS, "stripe"];
 const PAYMENT_DATE_PRESETS: PaymentDatePreset[] = ["all_time", "last_7_days", "last_30_days", "last_90_days", "custom"];
 
 type PaymentListItem = {
@@ -36,6 +37,8 @@ type PaymentListItem = {
   reference: string | null;
   paymentDate: string;
   notes: string | null;
+  provider: string | null;
+  providerPaymentId: string | null;
   voidedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -123,6 +126,7 @@ function formatDateTime(value: string | null) {
 }
 
 function formatPaymentMethod(method: PaymentMethod) {
+  if (method === "stripe") return "Stripe";
   return method.replace(/_/g, " ");
 }
 
@@ -728,7 +732,8 @@ export function PaymentsPage({ readOnlyDemo }: { readOnlyDemo: boolean }) {
                 ["Payment date", formatDate(selected.paymentDate)],
                 ["Method", formatPaymentMethod(selected.paymentMethod)],
                 ["Status", selected.status],
-                ["Reference", selected.reference || "—"],
+                ["Reference", selected.reference || selected.providerPaymentId || "—"],
+                ["Provider", selected.provider === "stripe" ? "Stripe" : selected.provider || "—"],
                 ["Notes", selected.notes || "—"],
                 ["Created", formatDateTime(selected.createdAt)],
                 [
@@ -864,7 +869,7 @@ export function PaymentsPage({ readOnlyDemo }: { readOnlyDemo: boolean }) {
                       }))
                     }
                   >
-                    {PAYMENT_METHODS.map((method) => (
+                    {MANUAL_PAYMENT_METHODS.map((method) => (
                       <option key={method} value={method}>
                         {formatPaymentMethod(method)}
                       </option>

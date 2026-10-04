@@ -231,6 +231,8 @@ export async function listPayments(ownerId: string, options: ListPaymentsOptions
       reference: typeof doc.reference === "string" ? doc.reference : undefined,
       paymentDate: doc.paymentDate as Date,
       notes: typeof doc.notes === "string" ? doc.notes : undefined,
+      provider: doc.provider === "stripe" ? "stripe" : undefined,
+      providerPaymentId: typeof doc.providerPaymentId === "string" ? doc.providerPaymentId : undefined,
       voidedAt: doc.voidedAt instanceof Date ? doc.voidedAt : undefined,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,

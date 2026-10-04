@@ -8,11 +8,11 @@ import {
   getPaymentsCollection,
   paymentMethods,
   toPaymentResponse,
-  type PaymentDocument,
   type PaymentMethod,
 } from "@/server/db/models/payment";
 import { deriveInvoiceStatus, normalizeMoney } from "@/server/invoices/status";
 import { getPaymentDetail, listPayments } from "@/server/payments/list-payments";
+import { PaymentRecordingError, recordInvoicePayment } from "@/server/payments/record-payment";
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -106,88 +106,52 @@ export async function POST(request: Request) {
   if (demoWriteResponse) return demoWriteResponse;
 
   try {
-    await ensureInvoiceIndexes();
-    await ensurePaymentIndexes();
-
     const body = (await request.json()) as Record<string, unknown>;
-    const invoiceId = getId(body.invoiceId, "invoiceId");
+    const invoiceId = getId(body.invoiceId, "invoiceId").toHexString();
     const amount = normalizeMoney(parseNumber(body.amount, "amount", { min: 0.01 }));
     const paymentMethod = body.paymentMethod;
     if (typeof paymentMethod !== "string" || !paymentMethods.includes(paymentMethod as PaymentMethod)) {
       throw new Error("paymentMethod is invalid");
     }
+    // Online Stripe payments are recorded only by verified webhooks.
+    if (paymentMethod === "stripe") {
+      return errorResponse("Stripe payments must be completed through Checkout", 400);
+    }
+
     const reference = textValue(body.reference, "reference", 200);
     const notes = textValue(body.notes, "notes", 2000);
     const paymentDate = parseOptionalDate(body.paymentDate, "paymentDate");
 
-    const invoice = await getInvoicesCollection().findOne({ _id: invoiceId, ownerId: session.user.id });
-    if (!invoice) return errorResponse("Invoice not found", 404);
-    if (invoice.status === "cancelled") return errorResponse("Cannot pay a cancelled invoice", 409);
-    if (invoice.status === "draft") return errorResponse("Cannot pay a draft invoice", 409);
-    if (invoice.outstandingAmount <= 0 || invoice.status === "paid") {
-      return errorResponse("Invoice is already fully paid", 409);
-    }
-    if (amount > invoice.outstandingAmount) {
-      return errorResponse("Payment amount exceeds outstanding balance", 409);
-    }
-
-    const now = new Date();
-    const reserved = await getInvoicesCollection().findOneAndUpdate(
-      {
-        _id: invoiceId,
-        ownerId: session.user.id,
-        status: { $nin: ["cancelled", "draft", "paid"] },
-        outstandingAmount: { $gte: amount },
-      },
-      {
-        $inc: { paidAmount: amount, outstandingAmount: -amount },
-        $set: { updatedAt: now },
-      },
-      { returnDocument: "after" },
-    );
-
-    if (!reserved) return errorResponse("Payment could not be applied to the outstanding balance", 409);
-
-    const payment: PaymentDocument = {
+    const result = await recordInvoicePayment({
       ownerId: session.user.id,
       invoiceId,
-      orderId: reserved.orderId,
-      customerId: reserved.customerId,
       amount,
       paymentMethod: paymentMethod as PaymentMethod,
       reference,
-      paymentDate,
       notes,
-      createdAt: now,
-      updatedAt: now,
-    };
+      paymentDate,
+    });
 
-    try {
-      const inserted = await getPaymentsCollection().insertOne(payment);
-      const synced = (await syncInvoiceStatus(invoiceId, session.user.id)) ?? reserved;
-      return NextResponse.json(
-        {
-          data: {
-            payment: toPaymentResponse({ ...payment, _id: inserted.insertedId }),
-            invoice: toInvoiceResponse(synced),
-          },
+    return NextResponse.json(
+      {
+        data: {
+          payment: result.payment,
+          invoice: result.invoice,
         },
-        { status: 201 },
-      );
-    } catch (error) {
-      await getInvoicesCollection().updateOne(
-        { _id: invoiceId, ownerId: session.user.id },
-        {
-          $inc: { paidAmount: -amount, outstandingAmount: amount },
-          $set: { updatedAt: new Date() },
-        },
-      );
-      await syncInvoiceStatus(invoiceId, session.user.id);
-      throw error;
-    }
+      },
+      { status: 201 },
+    );
   } catch (error) {
+    if (error instanceof PaymentRecordingError) {
+      return errorResponse(error.message, error.status);
+    }
     if (error instanceof Error) {
-      if (error.message.includes("is invalid") || error.message.includes("is required") || error.message.includes("must be") || error.message.includes("is too long")) {
+      if (
+        error.message.includes("is invalid") ||
+        error.message.includes("is required") ||
+        error.message.includes("must be") ||
+        error.message.includes("is too long")
+      ) {
         return errorResponse(error.message, 400);
       }
     }

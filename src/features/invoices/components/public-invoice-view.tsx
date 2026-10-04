@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { PublicInvoicePayButton } from "@/features/invoices/components/public-invoice-pay-button";
 import type { PublicInvoiceDto } from "@/server/invoices/public-access";
 
 function formatMoney(value: number) {
@@ -39,7 +40,15 @@ function formatBusinessAddress(address: PublicInvoiceDto["business"]["address"])
     .join(", ");
 }
 
-export function PublicInvoiceView({ invoice }: { invoice: PublicInvoiceDto }) {
+export function PublicInvoiceView({
+  invoice,
+  token,
+  paymentNotice,
+}: {
+  invoice: PublicInvoiceDto;
+  token: string;
+  paymentNotice?: "success" | "cancelled" | null;
+}) {
   const business = invoice.business;
   const addressLine = formatBusinessAddress(business.address);
   const billingLines = [
@@ -53,6 +62,20 @@ export function PublicInvoiceView({ invoice }: { invoice: PublicInvoiceDto }) {
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top,_#f8f4ee_0%,_var(--surface)_45%,_#e8eee9_100%)]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
+        {paymentNotice === "success" ? (
+          <div
+            className="rounded-2xl border border-[var(--blue)]/20 bg-[var(--blue-soft)] px-4 py-3 text-sm text-[var(--ink)]"
+            role="status"
+          >
+            Payment submitted. We are confirming your payment — this page updates when the payment is verified.
+          </div>
+        ) : null}
+        {paymentNotice === "cancelled" ? (
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--muted)]" role="status">
+            Checkout was cancelled. No payment was recorded.
+          </div>
+        ) : null}
+
         <header className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-6 py-6 shadow-sm sm:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-4">
@@ -188,21 +211,18 @@ export function PublicInvoiceView({ invoice }: { invoice: PublicInvoiceDto }) {
             <p className="text-sm font-semibold">Actions</p>
             <p className="mt-1 text-sm text-[var(--muted)]">{invoice.payment.message}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-start gap-2">
             <a
               href={invoice.pdfUrl}
               className="inline-flex h-10 items-center rounded-xl border border-[var(--line-strong)] bg-[var(--surface-raised)] px-4 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--surface-soft)]"
             >
               Download PDF
             </a>
-            <button
-              type="button"
-              disabled
-              className="inline-flex h-10 cursor-not-allowed items-center rounded-xl bg-[var(--ink)] px-4 text-sm font-semibold text-white opacity-50"
-              title="Online payment is not available yet"
-            >
-              Pay Invoice
-            </button>
+            <PublicInvoicePayButton
+              token={token}
+              canPay={invoice.payment.canPay}
+              disabledReason={invoice.payment.message}
+            />
           </div>
         </section>
 

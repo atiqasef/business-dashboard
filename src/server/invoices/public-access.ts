@@ -9,8 +9,10 @@ import {
   type InvoiceAccessDocument,
   type PublicLinkState,
 } from "@/server/db/models/invoice-access";
+import { isReadOnlyDemoUser } from "@/server/db/models/demo-account";
 import { ensureInvoiceIndexes, getInvoicesCollection, type InvoiceDocument } from "@/server/db/models/invoice";
 import { deriveInvoiceStatus } from "@/server/invoices/status";
+import { isStripeConfigured } from "@/server/payments/providers/stripe-config";
 import { getInvoiceBusinessBranding, type InvoiceBusinessBranding } from "@/server/settings/business-profile";
 
 /** Default public invoice link lifetime. */
@@ -213,7 +215,8 @@ export type PublicInvoiceDto = {
   notes: string | null;
   business: InvoiceBusinessBranding;
   payment: {
-    onlinePaymentsAvailable: false;
+    onlinePaymentsAvailable: boolean;
+    canPay: boolean;
     message: string;
   };
   pdfUrl: string;
@@ -222,6 +225,48 @@ export type PublicInvoiceDto = {
 export type ResolvedPublicInvoice =
   | { ok: true; invoice: InvoiceDocument; access: InvoiceAccessDocument; dto: PublicInvoiceDto }
   | { ok: false; reason: "invalid" | "expired" | "revoked" };
+
+function buildPaymentUiState(
+  invoice: InvoiceDocument,
+  options: { stripeConfigured: boolean; isDemoOwner: boolean },
+) {
+  const status = deriveInvoiceStatus(invoice);
+  const payable =
+    status !== "cancelled" &&
+    status !== "draft" &&
+    status !== "paid" &&
+    invoice.outstandingAmount > 0;
+
+  if (options.isDemoOwner) {
+    return {
+      onlinePaymentsAvailable: false,
+      canPay: false,
+      message: "Online payment unavailable in demo",
+    };
+  }
+
+  if (!options.stripeConfigured) {
+    return {
+      onlinePaymentsAvailable: false,
+      canPay: false,
+      message: "Online payment is not configured",
+    };
+  }
+
+  if (!payable) {
+    return {
+      onlinePaymentsAvailable: true,
+      canPay: false,
+      message: status === "paid" ? "This invoice is paid in full" : "Online payment is unavailable for this invoice",
+    };
+  }
+
+  return {
+    onlinePaymentsAvailable: true,
+    canPay: true,
+    message: "Pay securely with Stripe Checkout",
+  };
+}
 
 function toPublicInvoiceDto(
   invoice: InvoiceDocument,
@@ -236,6 +281,7 @@ function toPublicInvoiceDto(
     country: string | null;
   },
   pdfUrl: string,
+  paymentState: PublicInvoiceDto["payment"],
 ): PublicInvoiceDto {
   const status = deriveInvoiceStatus(invoice);
   return {
@@ -266,10 +312,7 @@ function toPublicInvoiceDto(
     outstandingAmount: invoice.outstandingAmount,
     notes: invoice.notes ?? null,
     business: branding,
-    payment: {
-      onlinePaymentsAvailable: false,
-      message: "Online payment coming soon",
-    },
+    payment: paymentState,
     pdfUrl,
   };
 }
@@ -323,6 +366,11 @@ export async function resolvePublicInvoiceByToken(token: string): Promise<Resolv
   const branding = await getInvoiceBusinessBranding(access.ownerId);
   const customerName =
     (customer ? `${customer.firstName} ${customer.lastName}`.trim() : "") || invoice.customerSnapshot.name;
+  const isDemoOwner = await isReadOnlyDemoUser(access.ownerId);
+  const paymentState = buildPaymentUiState(invoice, {
+    stripeConfigured: isStripeConfigured(),
+    isDemoOwner,
+  });
 
   // Best-effort access tracking — never fail the page on this write.
   void getInvoiceAccessCollection()
@@ -343,6 +391,7 @@ export async function resolvePublicInvoiceByToken(token: string): Promise<Resolv
       country: customer?.country ?? null,
     },
     pdfUrl,
+    paymentState,
   );
 
   return { ok: true, invoice, access, dto };
