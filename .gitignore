@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/.vitest
+**/__screenshots__/
 
 # next.js
 /.next/
