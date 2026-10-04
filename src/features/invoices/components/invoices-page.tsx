@@ -13,7 +13,6 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { BackToDashboardLink } from "@/components/common/back-to-dashboard-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -285,7 +284,6 @@ export function InvoicesPage({ readOnlyDemo }: { readOnlyDemo: boolean }) {
         </div>
 
         <div className="flex flex-col gap-3 self-start sm:self-auto sm:flex-row sm:items-center">
-          <BackToDashboardLink />
           {readOnlyDemo ? <Badge tone="accent">Read-only demo</Badge> : null}
         </div>
       </div>

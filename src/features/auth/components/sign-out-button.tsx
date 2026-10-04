@@ -40,7 +40,7 @@ export function SignOutButton() {
         disabled={loading}
         className="rounded-xl bg-[var(--ink)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--ink-strong)] disabled:pointer-events-none disabled:opacity-60"
       >
-        {loading ? "Signing out..." : "Sign out"}
+        {loading ? "Logging out..." : "Logout"}
       </button>
       {error ? <p className="text-xs text-red-600" role="alert">{error}</p> : null}
     </div>

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Eye, Loader2, Package, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
-import { BackToDashboardLink } from "@/components/common/back-to-dashboard-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -278,7 +277,6 @@ export function ProductsPage({ readOnlyDemo }: { readOnlyDemo: boolean }) {
           <p className="mt-2 text-sm text-[var(--muted)]">Track stock, pricing, and product details in one place.</p>
         </div>
         <div className="flex flex-col gap-3 self-start sm:self-auto sm:flex-row sm:items-center">
-          <BackToDashboardLink />
           {readOnlyDemo ? <Badge tone="accent">Read-only demo</Badge> : <Button type="button" variant="primary" className="self-start sm:self-auto" onClick={openCreate}>
             <Plus className="size-4" aria-hidden="true" /> Add Product
           </Button>}

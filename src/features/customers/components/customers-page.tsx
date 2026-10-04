@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Eye, ChevronLeft, ChevronRight, X, Loader2, Users, RefreshCw } from "lucide-react";
-import { BackToDashboardLink } from "@/components/common/back-to-dashboard-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -208,7 +207,6 @@ export function CustomersPage({ readOnlyDemo }: { readOnlyDemo: boolean }) {
           <p className="mt-2 text-sm text-[var(--muted)]">Keep every customer relationship organized in one place.</p>
         </div>
         <div className="flex flex-col gap-3 self-start sm:self-auto sm:flex-row sm:items-center">
-          <BackToDashboardLink />
           {readOnlyDemo ? <Badge tone="accent">Read-only demo</Badge> : <Button variant="primary" className="self-start sm:self-auto" onClick={openCreate}><Plus className="size-4" aria-hidden="true" /> Add customer</Button>}
         </div>
       </div>

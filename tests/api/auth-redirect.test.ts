@@ -43,6 +43,7 @@ describe("post-auth redirect paths", () => {
     await expect(loginUser(formData)).rejects.toThrow("NEXT_REDIRECT:/");
     expect(vi.mocked(redirect)).toHaveBeenCalledWith("/");
   });
+
 });
 
 describe("demo account provisioning and login", () => {
