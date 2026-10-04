@@ -180,14 +180,16 @@ export function DashboardOverview({
             accent: `${formatNumber(summary.unpaidInvoiceCount)} unpaid`,
             icon: Wallet,
             tone: "warning" as const,
+            href: "/payments",
           },
           {
             label: "Collected payments",
             value: formatMoney(summary.collectedPayments),
             detail: "Paid amount on active invoices",
-            accent: "Not order revenue",
+            accent: "View payments",
             icon: CircleDollarSign,
             tone: "positive" as const,
+            href: "/payments",
           },
           {
             label: "Overdue invoices",
@@ -196,6 +198,7 @@ export function DashboardOverview({
             accent: summary.overdueInvoiceCount ? "Needs follow-up" : "None overdue",
             icon: FileText,
             tone: "accent" as const,
+            href: "/invoices",
           },
           {
             label: "Order revenue",
@@ -207,8 +210,8 @@ export function DashboardOverview({
           },
         ].map((metric) => {
           const Icon = metric.icon;
-          return (
-            <Card key={metric.label} padding="compact" className="min-h-32">
+          const card = (
+            <Card padding="compact" className="min-h-32 transition-colors hover:border-[var(--line-strong)]">
               <div className="flex items-start justify-between">
                 <span className="grid size-10 place-items-center rounded-xl bg-[var(--surface-soft)] text-[var(--muted)]">
                   <Icon className="size-5" aria-hidden="true" />
@@ -219,6 +222,17 @@ export function DashboardOverview({
               <p className="mt-1 text-2xl font-semibold tracking-[-0.03em]">{metric.value}</p>
               <p className="mt-1 text-xs text-[var(--muted)]">{metric.detail}</p>
             </Card>
+          );
+          return "href" in metric && metric.href ? (
+            <Link
+              key={metric.label}
+              href={metric.href}
+              className="block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+            >
+              {card}
+            </Link>
+          ) : (
+            <div key={metric.label}>{card}</div>
           );
         })}
       </section>

@@ -34,6 +34,7 @@ export async function ensurePaymentIndexes() {
         { key: { ownerId: 1, customerId: 1 }, name: "owner_customerId" },
         { key: { ownerId: 1, paymentDate: -1 }, name: "owner_paymentDate" },
         { key: { ownerId: 1, createdAt: -1 }, name: "owner_createdAt" },
+        { key: { ownerId: 1, paymentMethod: 1, paymentDate: -1 }, name: "owner_method_paymentDate" },
       ])
       .then(() => undefined);
   }

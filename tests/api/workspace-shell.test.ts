@@ -14,6 +14,7 @@ describe("workspace shell navigation", () => {
       "/products",
       "/orders",
       "/invoices",
+      "/payments",
       "/reports",
       "/settings",
     ]);
@@ -25,9 +26,11 @@ describe("workspace shell navigation", () => {
     expect(isNavItemActive("/invoices", "/invoices")).toBe(true);
     expect(isNavItemActive("/invoices/abc123", "/invoices")).toBe(true);
     expect(isNavItemActive("/orders", "/invoices")).toBe(false);
+    expect(isNavItemActive("/payments", "/payments")).toBe(true);
     expect(isNavItemActive("/reports", "/reports")).toBe(true);
     expect(isNavItemActive("/settings", "/settings")).toBe(true);
     expect(getWorkspacePageTitle("/invoices/abc123")).toBe("Invoices");
+    expect(getWorkspacePageTitle("/payments")).toBe("Payments");
     expect(getWorkspacePageTitle("/reports")).toBe("Reports");
     expect(getWorkspacePageTitle("/settings")).toBe("Settings");
     expect(getWorkspacePageTitle("/")).toBe("Dashboard");

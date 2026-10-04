@@ -9,6 +9,7 @@ export const WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   { label: "Products", href: "/products" },
   { label: "Orders", href: "/orders" },
   { label: "Invoices", href: "/invoices" },
+  { label: "Payments", href: "/payments" },
   { label: "Reports", href: "/reports" },
   { label: "Settings", href: "/settings" },
 ];

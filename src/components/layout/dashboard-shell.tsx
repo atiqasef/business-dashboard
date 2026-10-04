@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
+  Banknote,
   Bell,
   ChartColumn,
   ChevronRight,
@@ -37,6 +38,7 @@ const navIcons: Record<string, LucideIcon> = {
   Products: Package,
   Orders: ShoppingCart,
   Invoices: FileText,
+  Payments: Banknote,
   Reports: ChartColumn,
   Settings: SettingsIcon,
 };

@@ -112,6 +112,11 @@ export async function GET(request: Request) {
     if (status) filter.status = status;
     if (orderIdParam) filter.orderId = getId(orderIdParam, "orderId");
     if (customerIdParam) filter.customerId = getId(customerIdParam, "customerId");
+    // Payable invoices for payment recording UI — server still validates on POST /api/payments.
+    if (url.searchParams.get("payable") === "1") {
+      filter.status = { $nin: ["draft", "cancelled", "paid"] };
+      filter.outstandingAmount = { $gt: 0 };
+    }
     if (search) {
       filter.$or = [
         { invoiceNumber: { $regex: escapeRegExp(search), $options: "i" } },

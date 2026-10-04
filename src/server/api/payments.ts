@@ -12,8 +12,7 @@ import {
   type PaymentMethod,
 } from "@/server/db/models/payment";
 import { deriveInvoiceStatus, normalizeMoney } from "@/server/invoices/status";
-
-const maxPageSize = 100;
+import { getPaymentDetail, listPayments } from "@/server/payments/list-payments";
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -70,29 +69,32 @@ export async function GET(request: Request) {
   if (!session) return errorResponse("Authentication required", 401);
 
   const url = new URL(request.url);
-  const page = Math.max(Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1, 1);
-  const pageSize = Math.min(Math.max(Number.parseInt(url.searchParams.get("pageSize") ?? "25", 10) || 25, 1), maxPageSize);
 
   try {
-    await ensurePaymentIndexes();
-    const filter: Record<string, unknown> = { ownerId: session.user.id };
-    const invoiceId = url.searchParams.get("invoiceId");
-    const customerId = url.searchParams.get("customerId");
-    if (invoiceId) filter.invoiceId = getId(invoiceId, "invoiceId");
-    if (customerId) filter.customerId = getId(customerId, "customerId");
-
-    const collection = getPaymentsCollection();
-    const [payments, total] = await Promise.all([
-      collection.find(filter).sort({ paymentDate: -1, createdAt: -1 }).skip((page - 1) * pageSize).limit(pageSize).toArray(),
-      collection.countDocuments(filter),
-    ]);
-
-    return NextResponse.json({
-      data: payments.map(toPaymentResponse),
-      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    const result = await listPayments(session.user.id, {
+      page: url.searchParams.get("page"),
+      pageSize: url.searchParams.get("pageSize"),
+      search: url.searchParams.get("search"),
+      status: url.searchParams.get("status"),
+      paymentMethod: url.searchParams.get("paymentMethod"),
+      datePreset: url.searchParams.get("datePreset"),
+      start: url.searchParams.get("start"),
+      end: url.searchParams.get("end"),
+      invoiceId: url.searchParams.get("invoiceId"),
+      customerId: url.searchParams.get("customerId"),
     });
+    return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof Error && error.message.includes("is invalid")) return errorResponse(error.message, 400);
+    if (
+      error instanceof Error &&
+      (error.message.includes("is invalid") ||
+        error.message.includes("Invalid date preset") ||
+        error.message.includes("Custom range") ||
+        error.message.includes("must be YYYY-MM-DD") ||
+        error.message.includes("start must be"))
+    ) {
+      return errorResponse(error.message, 400);
+    }
     return errorResponse("Unable to load payments", 500);
   }
 }
@@ -198,9 +200,9 @@ export async function GET_BY_ID(request: Request, context: { params: Promise<{ i
   if (!session) return errorResponse("Authentication required", 401);
 
   try {
-    const id = getId((await context.params).id, "payment id");
-    const payment = await getPaymentsCollection().findOne({ _id: id, ownerId: session.user.id });
-    return payment ? NextResponse.json({ data: toPaymentResponse(payment) }) : errorResponse("Payment not found", 404);
+    const id = (await context.params).id;
+    const payment = await getPaymentDetail(session.user.id, id);
+    return payment ? NextResponse.json({ data: payment }) : errorResponse("Payment not found", 404);
   } catch (error) {
     if (error instanceof Error && error.message.includes("is invalid")) return errorResponse("Invalid payment id", 400);
     return errorResponse("Unable to load payment", 500);

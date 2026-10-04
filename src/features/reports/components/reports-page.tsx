@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import {
@@ -281,7 +282,10 @@ export function ReportsPage({
             <div>
               <h2 className="text-lg font-semibold tracking-[-0.02em]">Payment collection trend</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Cash collected from invoice payments · distinct from order revenue
+                Cash collected from invoice payments · distinct from order revenue ·{" "}
+                <Link href="/payments" className="font-medium text-[var(--ink)] underline-offset-2 hover:underline">
+                  Open payments
+                </Link>
               </p>
             </div>
           </CardHeading>

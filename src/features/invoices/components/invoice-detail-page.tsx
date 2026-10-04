@@ -574,8 +574,14 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
             </Card>
 
             <Card padding="none">
-              <div className="border-b border-[var(--line)] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] p-5">
                 <h2 className="text-lg font-semibold">Payment history</h2>
+                <Link
+                  href={`/payments?invoiceId=${invoice.id}`}
+                  className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
+                >
+                  View all payments
+                </Link>
               </div>
               {invoice.payments.length === 0 ? (
                 <p className="p-5 text-sm text-[var(--muted)]">No payments recorded yet.</p>
