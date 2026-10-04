@@ -7,6 +7,7 @@ import {
   Banknote,
   Download,
   Loader2,
+  Mail,
   Printer,
   RefreshCw,
   ShoppingCart,
@@ -153,6 +154,7 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
   const [refreshTick, setRefreshTick] = useState(0);
   const [cancelling, setCancelling] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [emailingInvoice, setEmailingInvoice] = useState(false);
   const [voidingPaymentId, setVoidingPaymentId] = useState<string | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm(0));
@@ -287,6 +289,39 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
     }
   }
 
+  async function emailInvoice() {
+    if (!invoice || emailingInvoice) return;
+
+    const recipient = invoice.customerSnapshot.email?.trim();
+    if (!recipient) {
+      setError("Add a customer email address before emailing this invoice.");
+      return;
+    }
+
+    if (!window.confirm(`Send invoice ${invoice.invoiceNumber} to ${recipient}?`)) return;
+
+    setEmailingInvoice(true);
+    setError("");
+    setFeedback("");
+
+    try {
+      const response = await fetch(`/api/invoices/${invoice.id}/email`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; data?: { to?: string } } | null;
+      if (!response.ok) throw new Error(payload?.error || "Unable to email invoice.");
+
+      setFeedback(`Invoice emailed to ${payload?.data?.to || recipient}.`);
+    } catch (emailError) {
+      setError(emailError instanceof Error ? emailError.message : "Unable to email invoice.");
+    } finally {
+      setEmailingInvoice(false);
+    }
+  }
+
   async function cancelInvoice() {
     if (!invoice) return;
     if (!window.confirm(`Cancel invoice ${invoice.invoiceNumber}? This cannot be undone.`)) return;
@@ -365,6 +400,25 @@ export function InvoiceDetailPage({ invoiceId, readOnlyDemo }: { invoiceId: stri
             <Button type="button" variant="secondary" className="h-9" onClick={() => void downloadPdf()} disabled={downloadingPdf}>
               {downloadingPdf ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}
               {downloadingPdf ? "Downloading..." : "Download PDF"}
+            </Button>
+          ) : null}
+          {invoice ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-9"
+              onClick={() => void emailInvoice()}
+              disabled={emailingInvoice || !invoice.customerSnapshot.email || readOnlyDemo}
+              title={
+                readOnlyDemo
+                  ? "Email sending is disabled for the demo account."
+                  : !invoice.customerSnapshot.email
+                    ? "Customer email is required to send this invoice."
+                    : "Email invoice PDF to customer"
+              }
+            >
+              {emailingInvoice ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Mail className="size-4" aria-hidden="true" />}
+              {emailingInvoice ? "Sending..." : "Email Invoice"}
             </Button>
           ) : null}
           {!readOnlyDemo && invoice && canRecordPayment(invoice) ? (

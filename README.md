@@ -16,6 +16,7 @@ A server-first Next.js business workspace for customers, products, orders, invoi
 npm install
 cp .env.example .env.local
 # set BETTER_AUTH_SECRET, BETTER_AUTH_URL, NEXT_PUBLIC_APP_URL, MONGODB_URI, MONGODB_DB
+# optional for invoice email: RESEND_API_KEY, EMAIL_FROM, EMAIL_FROM_NAME
 npm run dev
 ```
 
@@ -61,6 +62,21 @@ Orders represent what a customer purchased. Totals are calculated server-side.
 - Statuses: `draft`, `issued`, `partially_paid`, `paid`, `overdue`, `cancelled`
 - Issued invoices with payments cannot be cancelled; cancel is preferred over hard delete
 - Download a professional PDF via `GET /api/invoices/:id/pdf` (owner-scoped, read-only; demo users may download)
+- Email the same PDF via `POST /api/invoices/:id/email` to the owned customer's server-side email (demo cannot send)
+
+### Invoice email (Resend)
+
+1. Create a [Resend](https://resend.com) account and API key
+2. Verify a sending domain (or use Resend's onboarding sender for development)
+3. Set in Vercel / `.env.local`:
+
+```bash
+RESEND_API_KEY=re_...
+EMAIL_FROM=invoices@your-verified-domain.com
+EMAIL_FROM_NAME=Ledger
+```
+
+The app builds without these variables. Sending fails at runtime with a clear configuration error until they are set. Demo accounts cannot send email.
 
 ### Payments
 
@@ -99,6 +115,9 @@ Set these in the Vercel project (values are never committed):
 - `NEXT_PUBLIC_APP_URL` (same production origin)
 - `MONGODB_URI`
 - `MONGODB_DB`
+- `RESEND_API_KEY` (invoice email)
+- `EMAIL_FROM` (verified sender address)
+- `EMAIL_FROM_NAME` (optional display name)
 
 ## Security notes
 
@@ -106,12 +125,12 @@ Set these in the Vercel project (values are never committed):
 - Browser-supplied `ownerId` / `userId` are never trusted for authorization
 - `.env.local`, `.vercel/`, and cookie jars are gitignored
 - Demo provisioning never deletes normal users or non-demo business data
+- Email provider secrets must never use `NEXT_PUBLIC_*` names
 
 ## Intentionally deferred
 
-- PDF invoice generation
-- Email delivery
 - Payment gateway integration
 - Multi-currency
 - Recurring invoices
+- Automated invoice reminders
 - Full double-entry accounting
