@@ -32,6 +32,7 @@ export async function ensureCustomerIndexes() {
     indexesPromise = getCustomersCollection()
       .createIndexes([
         { key: { ownerId: 1, updatedAt: -1 }, name: "owner_updatedAt" },
+        { key: { ownerId: 1, createdAt: -1 }, name: "owner_createdAt" },
         { key: { ownerId: 1, status: 1 }, name: "owner_status" },
         {
           key: { ownerId: 1, email: 1 },
