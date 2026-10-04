@@ -24,7 +24,9 @@ export const auth = betterAuth({
   secret: resolveAuthSecret(),
   baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   trustedOrigins: [process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"],
-  plugins: [admin(), nextCookies()],
+  // Admin plugin is required for server-side demo provisioning (`auth.api.createUser`).
+  // Only users with role "admin" can call admin HTTP APIs; normal registration stays "user".
+  plugins: [admin({ defaultRole: "user", adminRoles: ["admin"] }), nextCookies()],
   databaseHooks: {
     user: {
       create: {

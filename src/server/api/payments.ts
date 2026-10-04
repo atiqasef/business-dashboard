@@ -187,6 +187,9 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const payment = await getPaymentsCollection().findOne({ _id: id, ownerId: session.user.id });
     if (!payment) return errorResponse("Payment not found", 404);
     if (payment.voidedAt) return errorResponse("Payment is already voided", 409);
+    if (payment.provider === "stripe") {
+      return errorResponse("Stripe payments cannot be voided in-app; use Stripe refunds instead", 409);
+    }
 
     const invoice = await getInvoicesCollection().findOne({ _id: payment.invoiceId, ownerId: session.user.id });
     if (!invoice) return errorResponse("Invoice not found", 404);

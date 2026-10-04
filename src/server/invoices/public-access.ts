@@ -81,6 +81,23 @@ async function revokeActiveAccess(ownerId: string, invoiceId: ObjectId, now: Dat
   );
 }
 
+/** Keeps only the newest active token after concurrent regenerate races. */
+async function reconcileActiveInvoiceAccess(ownerId: string, invoiceId: ObjectId, now: Date) {
+  const active = await getInvoiceAccessCollection()
+    .find({ ownerId, invoiceId, revokedAt: { $exists: false } })
+    .sort({ createdAt: -1, _id: -1 })
+    .toArray();
+  if (active.length <= 1) return;
+
+  const olderIds = active.slice(1).map((doc) => doc._id!).filter(Boolean);
+  if (olderIds.length === 0) return;
+
+  await getInvoiceAccessCollection().updateMany(
+    { _id: { $in: olderIds } },
+    { $set: { revokedAt: now, updatedAt: now } },
+  );
+}
+
 function assertValidInvoiceId(invoiceId: string) {
   if (!ObjectId.isValid(invoiceId)) throw new InvoiceAccessError("Invalid invoice id", 400);
   return new ObjectId(invoiceId);
@@ -140,6 +157,7 @@ export async function createOrRegeneratePublicLink(
   };
 
   await getInvoiceAccessCollection().insertOne(document);
+  await reconcileActiveInvoiceAccess(ownerId, id, now);
 
   return {
     ...toPublicLinkState(document, { url: buildPublicInvoiceUrl(token), now }),

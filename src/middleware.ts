@@ -21,6 +21,13 @@ function isPublicCustomerPortalPath(pathname: string) {
   return pathname === "/portal" || pathname.startsWith("/portal/");
 }
 
+function withPublicTokenHeaders(response: NextResponse) {
+  // Bearer tokens live in the URL path — never leak them via Referer to third parties.
+  response.headers.set("Referrer-Policy", "no-referrer");
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -28,7 +35,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (publicRoutes.has(pathname) || isPublicInvoicePath(pathname) || isPublicCustomerPortalPath(pathname)) {
+  if (isPublicInvoicePath(pathname) || isPublicCustomerPortalPath(pathname)) {
+    return withPublicTokenHeaders(NextResponse.next());
+  }
+
+  if (publicRoutes.has(pathname)) {
     return NextResponse.next();
   }
 

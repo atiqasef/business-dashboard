@@ -8,8 +8,14 @@ import {
   revokePortalLinkForInvoice,
 } from "@/server/portal/access";
 
+const NO_STORE = { "Cache-Control": "no-store" } as const;
+
 function errorResponse(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status });
+  return NextResponse.json({ error: message }, { status, headers: NO_STORE });
+}
+
+function jsonData(data: unknown, status = 200) {
+  return NextResponse.json({ data }, { status, headers: NO_STORE });
 }
 
 async function getSession(request: Request) {
@@ -33,7 +39,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const { id } = await context.params;
     const state = await getPortalLinkStateForInvoice(session.user.id, id);
-    return NextResponse.json({ data: sanitizeState(state) });
+    return jsonData(sanitizeState(state));
   } catch (error) {
     if (error instanceof CustomerPortalAccessError) return errorResponse(error.message, error.status);
     return errorResponse("Unable to load portal link", 500);
@@ -50,14 +56,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const { id } = await context.params;
     const state = await createOrRegeneratePortalLink(session.user.id, id);
-    return NextResponse.json({
-      data: {
-        status: state.status,
-        expiresAt: state.expiresAt,
-        createdAt: state.createdAt,
-        revokedAt: state.revokedAt,
-        url: state.url,
-      },
+    return jsonData({
+      status: state.status,
+      expiresAt: state.expiresAt,
+      createdAt: state.createdAt,
+      revokedAt: state.revokedAt,
+      url: state.url,
     });
   } catch (error) {
     if (error instanceof CustomerPortalAccessError) return errorResponse(error.message, error.status);
@@ -75,7 +79,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   try {
     const { id } = await context.params;
     const state = await revokePortalLinkForInvoice(session.user.id, id);
-    return NextResponse.json({ data: sanitizeState(state) });
+    return jsonData(sanitizeState(state));
   } catch (error) {
     if (error instanceof CustomerPortalAccessError) return errorResponse(error.message, error.status);
     return errorResponse("Unable to revoke portal link", 500);

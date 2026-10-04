@@ -34,9 +34,12 @@ function isDuplicateKeyError(error: unknown) {
   );
 }
 
+/** Events stuck in `processing` longer than this are assumed crashed and may be reclaimed. */
+const PROCESSING_LEASE_MS = 2 * 60 * 1000;
+
 async function claimStripeEvent(
   event: Stripe.Event,
-): Promise<{ proceed: boolean; duplicate?: boolean }> {
+): Promise<{ proceed: boolean; duplicate?: boolean; retryLater?: boolean }> {
   await ensureStripeEventIndexes();
   const now = new Date();
 
@@ -61,14 +64,30 @@ async function claimStripeEvent(
   }
 
   if (existing.status === "processing") {
-    // Still in-flight — ask Stripe to retry shortly rather than double-process.
-    return { proceed: false, duplicate: true };
+    const ageMs = now.getTime() - existing.updatedAt.getTime();
+    if (ageMs < PROCESSING_LEASE_MS) {
+      // Still in-flight — ask Stripe to retry shortly rather than double-process.
+      return { proceed: false, retryLater: true };
+    }
+
+    // Lease expired (likely crash) — reclaim so Stripe retries can complete payment recording.
+    const reclaimedStale = await getStripeEventsCollection().findOneAndUpdate(
+      {
+        eventId: event.id,
+        status: "processing",
+        updatedAt: { $lte: new Date(now.getTime() - PROCESSING_LEASE_MS) },
+      },
+      { $set: { status: "processing", updatedAt: now }, $unset: { errorMessage: "" } },
+      { returnDocument: "after" },
+    );
+    if (reclaimedStale) return { proceed: true };
+    return { proceed: false, retryLater: true };
   }
 
   // Previous attempt failed — reclaim for retry.
   const reclaimed = await getStripeEventsCollection().findOneAndUpdate(
     { eventId: event.id, status: "failed" },
-    { $set: { status: "processing", updatedAt: now, errorMessage: undefined } },
+    { $set: { status: "processing", updatedAt: now }, $unset: { errorMessage: "" } },
     { returnDocument: "after" },
   );
   if (!reclaimed) return { proceed: false, duplicate: true };
@@ -166,8 +185,10 @@ async function processCheckoutSessionCompleted(session: Stripe.Checkout.Session)
   if (invoice.outstandingAmount <= 0 || invoice.status === "paid") {
     throw new PaymentRecordingError("Invoice is already fully paid", 409);
   }
-  if (amount !== invoice.outstandingAmount) {
-    throw new PaymentRecordingError("Stripe payment amount does not match invoice outstanding balance", 409);
+  // Apply when Stripe amount is at or below current outstanding (exact pay or underpay after totals change).
+  // Reject overpayment relative to current outstanding (stale full-balance session after a partial pay).
+  if (amount > invoice.outstandingAmount) {
+    throw new PaymentRecordingError("Stripe payment amount exceeds invoice outstanding balance", 409);
   }
 
   const recorded = await recordInvoicePayment({
@@ -180,6 +201,13 @@ async function processCheckoutSessionCompleted(session: Stripe.Checkout.Session)
     provider: "stripe",
     providerPaymentId: paymentIntentId,
   });
+
+  if (!recorded.duplicate) {
+    await getInvoicesCollection().updateOne(
+      { _id: new ObjectId(invoiceId), ownerId },
+      { $unset: { pendingStripeCheckout: "" }, $set: { updatedAt: new Date() } },
+    );
+  }
 
   return {
     ignored: false as const,
@@ -199,7 +227,10 @@ export function constructStripeEvent(rawBody: string, signature: string | null) 
 export async function handleStripeWebhookEvent(event: Stripe.Event): Promise<StripeWebhookResult> {
   const claim = await claimStripeEvent(event);
   if (!claim.proceed) {
-    // In-flight processing returns 200 to avoid stampedes; failed reclaim also 200 duplicate.
+    if (claim.retryLater) {
+      // Ask Stripe to retry while another worker may still be processing (or lease just expired).
+      return { httpStatus: 500, body: { received: false, error: "Event processing in progress" } };
+    }
     return { httpStatus: 200, body: { received: true, duplicate: true } };
   }
 

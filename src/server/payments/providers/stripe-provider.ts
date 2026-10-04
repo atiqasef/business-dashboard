@@ -14,6 +14,9 @@ import type {
 
 export const STRIPE_PAYMENT_CONTEXT = "invoice_checkout_v1";
 
+/** Stripe Checkout Sessions expire after 24h by default; we track a slightly shorter window. */
+const PENDING_CHECKOUT_TTL_MS = 23 * 60 * 60 * 1000;
+
 export class StripeCheckoutError extends Error {
   status: number;
 
@@ -29,6 +32,15 @@ export const stripeInvoicePaymentProvider: InvoicePaymentProvider = {
   isConfigured: () => isStripeConfigured(),
   createCheckoutSession: createStripeCheckoutSession,
 };
+
+async function expireStripeSessionBestEffort(sessionId: string) {
+  try {
+    const stripe = getStripeClient();
+    await stripe.checkout.sessions.expire(sessionId);
+  } catch {
+    // Session may already be expired, completed, or unknown — safe to continue.
+  }
+}
 
 async function createStripeCheckoutSession(
   input: InvoiceCheckoutSessionInput,
@@ -52,6 +64,11 @@ async function createStripeCheckoutSession(
   if (invoice.status === "draft") throw new StripeCheckoutError("Cannot pay a draft invoice", 409);
   if (invoice.outstandingAmount <= 0 || invoice.status === "paid") {
     throw new StripeCheckoutError("Invoice is already fully paid", 409);
+  }
+
+  // Expire any previously issued Checkout Session so customers cannot complete stale full-balance sessions.
+  if (invoice.pendingStripeCheckout?.sessionId) {
+    await expireStripeSessionBestEffort(invoice.pendingStripeCheckout.sessionId);
   }
 
   let amountCents: number;
@@ -106,6 +123,22 @@ async function createStripeCheckoutSession(
     if (!session.url) {
       throw new StripeCheckoutError("Unable to start online payment.", 502);
     }
+
+    const now = new Date();
+    await getInvoicesCollection().updateOne(
+      { _id: invoiceId, ownerId: input.ownerId },
+      {
+        $set: {
+          pendingStripeCheckout: {
+            sessionId: session.id,
+            amountCents,
+            createdAt: now,
+            expiresAt: new Date(now.getTime() + PENDING_CHECKOUT_TTL_MS),
+          },
+          updatedAt: now,
+        },
+      },
+    );
 
     return {
       provider: "stripe",

@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { ensureCustomerIndexes, getCustomersCollection } from "@/server/db/models/customer";
+import { isReadOnlyDemoUser } from "@/server/db/models/demo-account";
 import { ensureInvoiceIndexes, getInvoicesCollection, type InvoiceStatus } from "@/server/db/models/invoice";
 import {
   ensureInvoiceReminderIndexes,
@@ -77,6 +78,11 @@ export async function processInvoiceReminderCron(): Promise<ReminderCronSummary>
   for (const invoice of candidates) {
     if (summary.processed >= REMINDER_CRON_BATCH_LIMIT) break;
     if (!invoice._id || !invoice.dueDate) {
+      summary.skipped += 1;
+      continue;
+    }
+    // Demo tenants are read-only — never send automated emails or create public links for them.
+    if (await isReadOnlyDemoUser(invoice.ownerId)) {
       summary.skipped += 1;
       continue;
     }

@@ -18,6 +18,14 @@ export type InvoiceItem = {
   lineTotal: number;
 };
 
+/** Tracks the latest Stripe Checkout Session so prior sessions can be expired before creating another. */
+export type PendingStripeCheckout = {
+  sessionId: string;
+  amountCents: number;
+  createdAt: Date;
+  expiresAt: Date;
+};
+
 export interface InvoiceDocument {
   _id?: ObjectId;
   ownerId: string;
@@ -36,6 +44,8 @@ export interface InvoiceDocument {
   dueDate?: Date;
   status: InvoiceStatus;
   notes?: string;
+  /** Best-effort registry of the active Stripe Checkout Session for this invoice. */
+  pendingStripeCheckout?: PendingStripeCheckout;
   createdAt: Date;
   updatedAt: Date;
 }

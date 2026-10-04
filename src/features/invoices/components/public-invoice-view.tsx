@@ -106,7 +106,12 @@ export function PublicInvoiceView({
             {business.email ? <span>{business.email}</span> : null}
             {business.phone ? <span>{business.phone}</span> : null}
             {business.website ? (
-              <a href={business.website} className="text-[var(--accent-strong)] hover:underline">
+              <a
+                href={business.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent-strong)] hover:underline"
+              >
                 {business.website.replace(/^https?:\/\//, "")}
               </a>
             ) : null}

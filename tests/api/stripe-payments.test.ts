@@ -10,6 +10,7 @@ import { createOrRegeneratePublicLink, resolvePublicInvoiceByToken } from "@/ser
 import { dollarsToStripeCents, stripeCentsToDollars } from "@/server/payments/money";
 import { resetStripeClientForTests } from "@/server/payments/providers/stripe-client";
 import { STRIPE_PAYMENT_CONTEXT } from "@/server/payments/providers/stripe-provider";
+import { normalizeMoney } from "@/server/invoices/status";
 import { createInvoiceFromOrder, createPaymentForInvoice } from "../helpers/billing";
 import { demoUser, userA } from "../helpers/auth";
 import { markDemoUser, seedCustomer, seedOrder, seedProduct } from "../helpers/fixtures";
@@ -27,6 +28,7 @@ vi.mock("@/server/payments/providers/stripe-client", async () => {
       checkout: {
         sessions: {
           create: stripeSessionsCreate,
+          expire: vi.fn().mockResolvedValue({ id: "cs_expired", status: "expired" }),
         },
       },
       webhooks: {
@@ -363,21 +365,22 @@ describe("stripe webhook processing", () => {
     expect(await getPaymentsCollection().countDocuments({ ownerId: userA.id })).toBe(1);
   });
 
-  it("rejects amount/currency mismatches and ignores unpaid sessions", async () => {
+  it("rejects overpayment/currency mismatches and ignores unpaid sessions", async () => {
     const { invoiceId, outstanding } = await seedOpenInvoice();
 
-    const wrongAmount = await stripeWebhook(
+    // Amount above current outstanding must never auto-apply (stale full-balance Checkout).
+    const overpay = await stripeWebhook(
       signedWebhookRequest(
         completedEvent({
           eventId: "evt_wrong_amount",
           invoiceId,
-          amountCents: dollarsToStripeCents(outstanding) - 1,
+          amountCents: dollarsToStripeCents(outstanding) + 1,
           paymentIntentId: "pi_wrong_amount",
         }),
         webhookSecret,
       ),
     );
-    expect(wrongAmount.status).toBe(200);
+    expect(overpay.status).toBe(200);
     expect(await getPaymentsCollection().countDocuments({ ownerId: userA.id })).toBe(0);
 
     const wrongCurrency = await stripeWebhook(
@@ -410,6 +413,29 @@ describe("stripe webhook processing", () => {
     expect(unpaid.status).toBe(200);
     expect((await readJson(unpaid))?.ignored).toBe(true);
     expect(await getPaymentsCollection().countDocuments({ ownerId: userA.id })).toBe(0);
+  });
+
+  it("applies Stripe underpayments up to current outstanding after a partial manual pay", async () => {
+    const { invoiceId, outstanding } = await seedOpenInvoice();
+    const partial = Math.max(0.01, normalizeMoney(outstanding / 2));
+    await createPaymentForInvoice(userA, invoiceId, partial);
+
+    const remaining = normalizeMoney(outstanding - partial);
+    const underpayAmount = normalizeMoney(Math.max(0.01, remaining - 1));
+    const event = completedEvent({
+      eventId: "evt_underpay",
+      invoiceId,
+      amountCents: dollarsToStripeCents(underpayAmount),
+      paymentIntentId: "pi_underpay",
+    });
+
+    const response = await stripeWebhook(signedWebhookRequest(event, webhookSecret));
+    expect(response.status).toBe(200);
+    expect(await getPaymentsCollection().countDocuments({ ownerId: userA.id, provider: "stripe" })).toBe(1);
+
+    const invoice = await getInvoicesCollection().findOne({ _id: new ObjectId(invoiceId) });
+    expect(invoice?.paidAmount).toBe(normalizeMoney(partial + underpayAmount));
+    expect(invoice?.outstandingAmount).toBe(normalizeMoney(outstanding - partial - underpayAmount));
   });
 
   it("does not mark invoices paid from return URLs and ignores irrelevant events", async () => {

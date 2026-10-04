@@ -36,7 +36,12 @@ vi.mock("@/server/payments/providers/stripe-client", async () => {
   return {
     ...actual,
     getStripeClient: () => ({
-      checkout: { sessions: { create: stripeSessionsCreate } },
+      checkout: {
+        sessions: {
+          create: stripeSessionsCreate,
+          expire: vi.fn().mockResolvedValue({ id: "cs_expired", status: "expired" }),
+        },
+      },
       webhooks: { constructEvent: () => ({}) },
     }),
   };

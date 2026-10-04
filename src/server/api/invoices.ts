@@ -334,12 +334,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     if (Object.keys(updates).length === 1) throw new Error("No updates supplied");
 
-    const result = await getInvoicesCollection().findOneAndUpdate(
-      { _id: id, ownerId: session.user.id },
-      { $set: updates },
-      { returnDocument: "after" },
-    );
-    if (!result) return errorResponse("Invoice not found", 404);
+    // Condition on paidAmount so concurrent payments cannot be overwritten by a stale outstanding recalculation.
+    const filter: Record<string, unknown> = {
+      _id: id,
+      ownerId: session.user.id,
+      paidAmount: invoice.paidAmount,
+    };
+    if ("tax" in body || "discount" in body) {
+      filter.status = { $nin: ["cancelled", "paid"] };
+    }
+
+    const result = await getInvoicesCollection().findOneAndUpdate(filter, { $set: updates }, { returnDocument: "after" });
+    if (!result) {
+      const current = await getInvoicesCollection().findOne({ _id: id, ownerId: session.user.id });
+      if (!current) return errorResponse("Invoice not found", 404);
+      return errorResponse("Invoice was updated concurrently; refresh and try again", 409);
+    }
 
     const nextStatus = deriveInvoiceStatus(result);
     if (nextStatus !== result.status) {

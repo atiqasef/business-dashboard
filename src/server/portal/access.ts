@@ -101,6 +101,23 @@ async function revokeActivePortalAccess(ownerId: string, customerId: ObjectId, n
   );
 }
 
+/** Keeps only the newest active portal token after concurrent regenerate races. */
+async function reconcileActivePortalAccess(ownerId: string, customerId: ObjectId, now: Date) {
+  const active = await getCustomerPortalAccessCollection()
+    .find({ ownerId, customerId, revokedAt: { $exists: false } })
+    .sort({ createdAt: -1, _id: -1 })
+    .toArray();
+  if (active.length <= 1) return;
+
+  const olderIds = active.slice(1).map((doc) => doc._id!).filter(Boolean);
+  if (olderIds.length === 0) return;
+
+  await getCustomerPortalAccessCollection().updateMany(
+    { _id: { $in: olderIds } },
+    { $set: { revokedAt: now, updatedAt: now } },
+  );
+}
+
 export async function getPortalLinkStateForInvoice(ownerId: string, invoiceId: string): Promise<PublicLinkState> {
   if (!ownerId) throw new CustomerPortalAccessError("Authentication required", 401);
   const id = assertValidInvoiceId(invoiceId);
@@ -151,6 +168,7 @@ export async function createOrRegeneratePortalLink(
   };
 
   await getCustomerPortalAccessCollection().insertOne(document);
+  await reconcileActivePortalAccess(ownerId, invoice.customerId, now);
   const url = buildCustomerPortalUrl(token);
   return { ...toPortalLinkState(document, { url, now }), url, token };
 }
@@ -366,6 +384,8 @@ function buildInvoiceMatch(
       match.outstandingAmount = { $gt: 0 };
       break;
     default:
+      // Never expose draft invoices on the public customer portal.
+      match.status = { $ne: "draft" };
       break;
   }
 
@@ -426,6 +446,7 @@ export async function listPortalInvoices(
           $match: {
             ownerId: resolved.access.ownerId,
             customerId: resolved.access.customerId,
+            status: { $ne: "draft" },
           },
         },
         {
@@ -497,6 +518,7 @@ export async function getPortalInvoiceByNumber(token: string, invoiceNumber: str
     ownerId: resolved.access.ownerId,
     customerId: resolved.access.customerId,
     invoiceNumber: invoiceNumber.trim(),
+    status: { $ne: "draft" },
   });
   if (!invoice) {
     // Generic not-found — do not reveal whether the invoice exists for another customer.

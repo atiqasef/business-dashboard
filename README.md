@@ -204,11 +204,18 @@ Set these in the Vercel project (values are never committed):
 
 - Owner scope always comes from the authenticated session
 - Browser-supplied `ownerId` / `userId` are never trusted for authorization
-- Public invoice access uses hashed bearer tokens (not Mongo invoice IDs)
-- Stripe secrets must never use `NEXT_PUBLIC_*` names
+- Public invoice / customer portal access uses hashed bearer tokens (not Mongo IDs)
+- Invoice-only tokens and customer portal tokens are separate capabilities
+- Public token URLs use `Referrer-Policy: no-referrer` and `Cache-Control: no-store`
+- Stripe Checkout Sessions are expired when a new session is created for the same invoice
+- Stripe-recorded payments cannot be voided in-app (use Stripe refunds)
+- Stripe webhook events stuck in `processing` are reclaimed after a short lease
+- Demo owners are skipped by the reminder cron (no automated emails / link creation)
+- `MONGODB_URI` and `BETTER_AUTH_SECRET` are required in production
+- Stripe / Resend / cron secrets must never use `NEXT_PUBLIC_*` names
+- See `.env.example` for the full variable list (values never committed)
 - `.env.local`, `.vercel/`, and cookie jars are gitignored
 - Demo provisioning never deletes normal users or non-demo business data
-- Email provider secrets must never use `NEXT_PUBLIC_*` names
 
 ## Intentionally deferred
 

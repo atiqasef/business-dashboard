@@ -15,7 +15,14 @@ const globalMongo = globalThis as typeof globalThis & {
 };
 
 function resolveUri() {
-  return process.env.MONGODB_URI || defaultUri;
+  const uri = process.env.MONGODB_URI?.trim();
+  if (uri) return uri;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("MONGODB_URI must be set in production");
+  }
+
+  return defaultUri;
 }
 
 function resolveDatabaseName() {
